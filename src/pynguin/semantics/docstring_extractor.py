@@ -17,7 +17,7 @@ class FunctionSemantics:
     params: Mapping[str, ParamSpec]
     raises: Sequence[str]
 
-_CONSTRAINT_RX = re.compile(r"(?P<var>\w+)\s*(==|!=|>=|<=|>|<)\s*([-+\w\.]+)")
+_CONSTRAINT_RX = re.compile(r"(==|!=|>=|<=|>|<)\s*([-+\w\.]+)")
 
 def _extract_examples(text: str) -> list[Any]:
     """Sucht nach literalen Beispiel-Argumenten in der Description."""
@@ -37,10 +37,15 @@ def semantics_for(obj) -> FunctionSemantics | None:
     params: dict[str, ParamSpec] = {}
     for p in parsed.params:
         desc = p.description or ""
+        constraint: str | None = None
         m = _CONSTRAINT_RX.search(desc)
+        if m:
+            op, rhs = m.group(1), m.group(2).rstrip(".,;")
+            constraint = f"{p.arg_name} {op} {rhs}"   # → „x > 0“
+
         params[p.arg_name] = ParamSpec(
             name=p.arg_name,
-            constraint=m.group(0) if m else None,
+            constraint=constraint,
             example_values=_extract_examples(desc),
         )
     return FunctionSemantics(
