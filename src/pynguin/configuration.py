@@ -789,14 +789,14 @@ class Configuration:
     )
     """Search algorithm configuration."""
 
-    use_docstring_semantics: bool = False
-    """If True, Pynguin seeds search with constraints/examples extracted from docstrings."""
-
     mio: MIOConfiguration = dataclasses.field(default_factory=MIOConfiguration)
     """Configuration used for the MIO algorithm."""
 
     random: RandomConfiguration = dataclasses.field(default_factory=RandomConfiguration)
     """Configuration used for the RANDOM algorithm."""
+
+    use_docstring_semantics: bool = False
+    """If True, Pynguin seeds search with constraints/examples extracted from docstrings."""
 
     ignore_modules: list[str] = dataclasses.field(default_factory=list)
     """Ignore the modules specified here from the module analysis."""
@@ -814,6 +814,3 @@ configuration = Configuration(
     module_name="",
     test_case_output=TestCaseOutputConfiguration(output_path=""),
 )
-
-use_docstring_semantics: bool = False
-"""If True, seed search with constraints/examples extracted from docstrings."""
