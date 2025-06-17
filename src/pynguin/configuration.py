@@ -789,6 +789,9 @@ class Configuration:
     )
     """Search algorithm configuration."""
 
+    use_docstring_semantics: bool = False
+    """If True, Pynguin seeds search with constraints/examples extracted from docstrings."""
+
     mio: MIOConfiguration = dataclasses.field(default_factory=MIOConfiguration)
     """Configuration used for the MIO algorithm."""
 
@@ -811,3 +814,6 @@ configuration = Configuration(
     module_name="",
     test_case_output=TestCaseOutputConfiguration(output_path=""),
 )
+
+use_docstring_semantics: bool = False
+"""If True, seed search with constraints/examples extracted from docstrings."""
