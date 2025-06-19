@@ -795,7 +795,7 @@ class Configuration:
     random: RandomConfiguration = dataclasses.field(default_factory=RandomConfiguration)
     """Configuration used for the RANDOM algorithm."""
 
-    use_docstring_semantics: bool = False
+    use_docstring_semantics: bool = True
     """If True, Pynguin seeds search with constraints/examples extracted from docstrings."""
 
     ignore_modules: list[str] = dataclasses.field(default_factory=list)
