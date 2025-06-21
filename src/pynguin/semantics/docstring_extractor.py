@@ -54,6 +54,14 @@ def semantics_for(obj) -> FunctionSemantics | None:
             constraint=constraint,
             example_values=_extract_examples(desc),
         )
+
+    returns: ReturnSpec | None = None
+    if parsed.returns:
+        returns = ReturnSpec(
+            type_name=parsed.returns.type_name,
+            description=parsed.returns.description,
+        )
+        
     return FunctionSemantics(
         qual_name=f"{obj.__module__}.{obj.__qualname__}",
         params=params,
