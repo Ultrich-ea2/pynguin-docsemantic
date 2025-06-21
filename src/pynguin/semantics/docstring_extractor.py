@@ -61,9 +61,10 @@ def semantics_for(obj) -> FunctionSemantics | None:
             type_name=parsed.returns.type_name,
             description=parsed.returns.description,
         )
-        
+
     return FunctionSemantics(
         qual_name=f"{obj.__module__}.{obj.__qualname__}",
         params=params,
         raises=[r.type_name for r in parsed.raises],
+        returns=returns,
     )
