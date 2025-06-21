@@ -12,6 +12,11 @@ class ParamSpec:
     example_values: Sequence[Any] = ()
 
 @dataclass
+class ReturnSpec:
+    type_name: str | None = None
+    description: str | None = None
+
+@dataclass
 class FunctionSemantics:
     qual_name: str
     params: Mapping[str, ParamSpec]
