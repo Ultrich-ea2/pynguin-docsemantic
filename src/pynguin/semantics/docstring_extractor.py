@@ -21,6 +21,7 @@ class FunctionSemantics:
     qual_name: str
     params: Mapping[str, ParamSpec]
     raises: Sequence[str]
+    returns: ReturnSpec | None = None
 
 _CONSTRAINT_RX = re.compile(r"(==|!=|>=|<=|>|<)\s*([-+\w\.]+)")
 
