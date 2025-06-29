@@ -1173,24 +1173,30 @@ def __analyse_function(
     else:
         semantics = semantics_for(func)
 
+    # Create inferred signature
+    inferred_signature = type_inference_strategy.infer_signature(func)
+    
+    # Create GenericFunction object
+    generic_function = GenericFunction(
+        function=func,
+        inferred_signature=inferred_signature,
+        raised_exceptions=set(func_desc.raises) if func_desc else set(),
+        function_name=func_name,
+    )
+    
+    # Create CallableData
+    callable_data = CallableData(
+        accessible=generic_function,
+        tree=__get_function_ast(func_name, module_tree),
+        description=func_desc,
+        cyclomatic_complexity=__get_mccabe_complexity(__get_function_ast(func_name, module_tree)),
+        semantics=semantics,
+    )
+
+    # Add to test cluster
+    test_cluster.add_generator(generic_function)
     if add_to_test:
-        test_cluster.add_function(
-            func_name,
-            func,
-            func_desc.parameters if func_desc else None,
-            func_desc.return_type if func_desc else None,
-            func_desc.raises if func_desc else None,
-            semantics,
-        )
-    else:
-        test_cluster.add_function(
-            func_name,
-            func,
-            func_desc.parameters if func_desc else None,
-            func_desc.return_type if func_desc else None,
-            func_desc.raises if func_desc else None,
-            semantics,
-        )
+        test_cluster.add_accessible_object_under_test(generic_function, callable_data)
 
 
 def __analyse_class(
