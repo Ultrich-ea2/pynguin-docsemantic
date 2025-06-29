@@ -80,6 +80,7 @@ from pynguin.utils.type_utils import PRIMITIVES
 from pynguin.utils.type_utils import get_class_that_defined_method
 from pynguin.utils.typeevalpy_json_schema import provide_json
 
+from pynguin.semantics.docstring_extractor import semantics_for
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -185,6 +186,22 @@ MODULE_BLACKLIST = frozenset((
 
 # Blacklist for methods.
 METHOD_BLACKLIST = frozenset(("time.sleep",))
+
+# Add this after the METHOD_BLACKLIST definition
+IGNORED_SYMBOLS: set[str] = {
+    "__new__",
+    "__init__",
+    "__repr__",
+    "__str__",
+    "__sizeof__",
+    "__getattribute__",
+    "__getattr__",
+}
+
+def __add_symbols(class_ast: astroid.ClassDef | None, type_info: TypeInfo) -> None:
+    """Add symbols from class AST to type info."""
+    if class_ast is not None:
+        type_info.add_symbols(class_ast)
 
 
 def _is_blacklisted(element: Any) -> bool:
@@ -945,10 +962,9 @@ class FilteredModuleTestCluster(TestCluster):  # noqa: PLR0904
         self.__delegate = delegate
         self.__subject_properties = subject_properties
         self.__code_object_id_to_accessible_objects: dict[int, GenericCallableAccessibleObject] = {
-            json.loads(acc.callable.__code__.co_consts[0])[CODE_OBJECT_ID_KEY]: acc
+            getattr(acc.callable, "code_object_id", None): acc
             for acc in delegate.accessible_objects_under_test
-            if isinstance(acc, GenericCallableAccessibleObject)
-            and hasattr(acc.callable, "__code__")
+            if isinstance(acc.callable, "code_object_id")
         }
         # Checking for __code__ is necessary, because the __init__ of a class that
         # does not define __init__ points to some internal CPython stuff.
@@ -1093,6 +1109,7 @@ class CallableData:
     tree: AstroidFunctionDef | None
     description: FunctionDescription | None
     cyclomatic_complexity: int | None
+    semantics: Any = None
 
 
 @dataclasses.dataclass
@@ -1138,63 +1155,42 @@ def __analyse_function(
     add_to_test: bool,
 ) -> None:
     if __is_private(func_name) or __is_protected(func_name):
-        LOGGER.debug("Skipping function %s from analysis", func_name)
-        return
-    if inspect.iscoroutinefunction(func) or inspect.isasyncgenfunction(func):
-        if add_to_test:
-            raise ValueError("Pynguin cannot handle Coroutine in SUT. Stopping.")
-        # Coroutine outside the SUT are not problematic, just exclude them.
-        LOGGER.debug("Skipping coroutine %s outside of SUT", func_name)
+        LOGGER.debug("Skipping private/protected function: %s", func_name)
         return
 
-    LOGGER.debug("Analysing function %s", func_name)
-    inferred_signature = test_cluster.type_system.infer_type_info(
-        func,
-        type_inference_strategy=type_inference_strategy,
-    )
-    func_ast = get_function_node_from_ast(module_tree, func_name)
-    description = get_function_description(func_ast)
-    raised_exceptions = description.raises if description is not None else set()
-    cyclomatic_complexity = __get_mccabe_complexity(func_ast)
-    if getattr(func, "__name__", None) == "<lambda>":
-        if lambda_assigned_name := _get_lambda_assigned_name(
-            module_tree, func.__code__.co_firstlineno
-        ):
-            func_name = lambda_assigned_name
-            func.__name__ = lambda_assigned_name
-        else:
-            # If the lambda itself has no name, we must not add it to the test cluster
-            # or else it will cause an exception during test export.
-            return
-
-    generic_function = GenericFunction(func, inferred_signature, raised_exceptions, func_name)
-
-    if config.configuration.pynguinml.ml_testing_enabled and module_tree is not None:
-        parameters: dict[str, MLParameter | None] = {}
-        generation_order: list[str] = []
-
-        try:
-            parameters, generation_order = tr.load_and_process_constraints(
-                module_tree.name, func_name, list(inferred_signature.original_parameters.keys())
-            )
-        except ConstraintValidationError as e:
-            LOGGER.warning("ConstraintValidationError occurred: %s. Skipping.", e)
-
-        ml_data = MLCallableData(
-            parameters=parameters,
-            generation_order=generation_order,
+    try:
+        func_desc = get_function_description(
+            __get_function_ast(func_name, module_tree)
         )
-        test_cluster.add_ml_data(generic_function, ml_data)
+    except Exception as e:
+        LOGGER.debug("Could not get function description for %s: %s", func_name, e)
+        func_desc = None
 
-    function_data = CallableData(
-        accessible=generic_function,
-        tree=func_ast,
-        description=description,
-        cyclomatic_complexity=cyclomatic_complexity,
-    )
-    test_cluster.add_generator(generic_function)
+    # Use AST-based semantics if available
+    semantics = None
+    if func_desc and func_desc.semantics:
+        semantics = func_desc.semantics
+    else:
+        semantics = semantics_for(func)
+
     if add_to_test:
-        test_cluster.add_accessible_object_under_test(generic_function, function_data)
+        test_cluster.add_function(
+            func_name,
+            func,
+            func_desc.parameters if func_desc else None,
+            func_desc.return_type if func_desc else None,
+            func_desc.raises if func_desc else None,
+            semantics,
+        )
+    else:
+        test_cluster.add_function(
+            func_name,
+            func,
+            func_desc.parameters if func_desc else None,
+            func_desc.return_type if func_desc else None,
+            func_desc.raises if func_desc else None,
+            semantics,
+        )
 
 
 def __analyse_class(
@@ -1296,100 +1292,53 @@ def __analyse_class(
         )
 
 
-# Some symbols are not interesting for us.
-IGNORED_SYMBOLS: set[str] = {
-    "__new__",
-    "__init__",
-    "__repr__",
-    "__str__",
-    "__sizeof__",
-    "__getattribute__",
-    "__getattr__",
-}
-
-
-def __add_symbols(class_ast: astroid.ClassDef | None, type_info: TypeInfo) -> None:
-    """Tries to infer what symbols can be found on an instance of the given class.
-
-    We also try to infer what attributes are defined in '__init__'.
-
-    Args:
-        class_ast: The AST Node of the class.
-        type_info: The type info.
-    """
-    if class_ast is not None:
-        type_info.instance_attributes.update(tuple(class_ast.instance_attrs))
-    type_info.attributes.update(type_info.instance_attributes)
-    type_info.attributes.update(tuple(vars(type_info.raw_type)))
-    type_info.attributes.difference_update(IGNORED_SYMBOLS)
-
-
 def __analyse_method(
     *,
     type_info: TypeInfo,
     method_name: str,
-    method: (FunctionType | BuiltinFunctionType | WrapperDescriptorType | MethodDescriptorType),
+    method: FunctionType,
     type_inference_strategy: TypeInferenceStrategy,
     class_tree: astroid.ClassDef | None,
     test_cluster: ModuleTestCluster,
     add_to_test: bool,
 ) -> None:
-    if (
-        __is_private(method_name)
-        or __is_protected(method_name)
-        or __is_constructor(method_name)
-        or not __is_method_defined_in_class(type_info.raw_type, method)
-    ):
-        LOGGER.debug("Skipping method %s from analysis", method_name)
-        return
-    if inspect.iscoroutinefunction(method) or inspect.isasyncgenfunction(method):
-        if add_to_test:
-            raise ValueError("Pynguin cannot handle Coroutine in SUT. Stopping.")
-        # Coroutine outside the SUT are not problematic, just exclude them.
-        LOGGER.debug("Skipping coroutine %s outside of SUT", method_name)
+    """Analyse a method of a class."""
+    if __is_private(method_name) or __is_protected(method_name):
+        LOGGER.debug("Skipping private/protected method: %s", method_name)
         return
 
-    LOGGER.debug("Analysing method %s.%s", type_info.full_name, method_name)
-    inferred_signature = test_cluster.type_system.infer_type_info(
-        method,
-        type_inference_strategy=type_inference_strategy,
-    )
-    method_ast = get_function_node_from_ast(class_tree, method_name)
-    description = get_function_description(method_ast)
-    raised_exceptions = description.raises if description is not None else set()
-    cyclomatic_complexity = __get_mccabe_complexity(method_ast)
-    generic_method = GenericMethod(
-        type_info, method, inferred_signature, raised_exceptions, method_name
-    )
-
-    if config.configuration.pynguinml.ml_testing_enabled:
-        parameters: dict[str, MLParameter | None] = {}
-        generation_order: list[str] = []
-
-        callable_name = type_info.name + "." + method_name
-        try:
-            parameters, generation_order = tr.load_and_process_constraints(
-                type_info.module, callable_name, list(inferred_signature.original_parameters.keys())
-            )
-        except ConstraintValidationError as e:
-            LOGGER.warning("ConstraintValidationError occurred: %s. Skipping.", e)
-
-        ml_data = MLCallableData(
-            parameters=parameters,
-            generation_order=generation_order,
+    try:
+        method_desc = get_function_description(
+            __get_method_ast(method_name, class_tree)
         )
-        test_cluster.add_ml_data(generic_method, ml_data)
+    except Exception as e:
+        LOGGER.debug("Could not get method description for %s: %s", method_name, e)
+        method_desc = None
 
-    method_data = CallableData(
-        accessible=generic_method,
-        tree=method_ast,
-        description=description,
-        cyclomatic_complexity=cyclomatic_complexity,
-    )
-    test_cluster.add_generator(generic_method)
-    test_cluster.add_modifier(type_info, generic_method)
+    semantics = None
+    if method_desc and method_desc.semantics:
+        semantics = method_desc.semantics
+    else:
+        semantics = semantics_for(method)
+
     if add_to_test:
-        test_cluster.add_accessible_object_under_test(generic_method, method_data)
+        type_info.add_method(
+            method_name,
+            method,
+            method_desc.parameters if method_desc else None,
+            method_desc.return_type if method_desc else None,
+            method_desc.raises if method_desc else None,
+            semantics,
+        )
+    else:
+        type_info.add_method(
+            method_name,
+            method,
+            method_desc.parameters if method_desc else None,
+            method_desc.return_type if method_desc else None,
+            method_desc.raises if method_desc else None,
+            semantics,
+        )
 
 
 class _ParseResults(dict):  # noqa: FURB189
@@ -1600,4 +1549,5 @@ def generate_test_cluster(
     Returns:
         A new test cluster for the given module
     """
+    print(f"[DEBUG] Generating test cluster for module: {module_name}")
     return analyse_module(parse_module(module_name), type_inference_strategy)
