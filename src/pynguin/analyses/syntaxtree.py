@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import importlib
 import logging
+import inspect
 
 from collections import deque
 from typing import TYPE_CHECKING
@@ -25,6 +27,7 @@ from typing import TypeAlias
 import astroid
 
 from astroid.nodes.as_string import to_code
+from pynguin.semantics.docstring_extractor import FunctionSemantics, semantics_for
 
 
 if TYPE_CHECKING:
@@ -458,6 +461,7 @@ class FunctionDescription:
         raises: The (potentially empty) set of exceptions the function raises
         raises_assert: Whether the function raises any exceptions
         start_line_no: The first line number of the function
+        doc_semantics: The structured docstring info for the function
     """
 
     end_line_no: int
@@ -469,6 +473,7 @@ class FunctionDescription:
     raises: set[str]
     raises_assert: bool
     start_line_no: int
+    doc_semantics: FunctionSemantics | None = None
 
 
 def astroid_to_ast(astroid_in: AstroidFunctionDef) -> ASTFunctionDef:
@@ -542,11 +547,14 @@ def get_function_description(
     if func is None:
         return None
 
+    # Print a debug message to confirm this function is being called.
+    print(f"DEBUG: Analyzing function: {func.name}")
+
     function_analysis = FunctionAnalysisVisitor()
     try:
         function_analysis.visit(astroid_to_ast(func))
-    except SyntaxError:
-        _LOGGER.debug("Analysis of %s failed", func.name)
+    except (SyntaxError, IndexError):
+        _LOGGER.debug("Analysis of %s failed during AST visit", func.name)
         return None
 
     has_return = bool(function_analysis.returns)
@@ -554,7 +562,69 @@ def get_function_description(
     if has_return:
         return_value = function_analysis.returns[0]
         has_empty_return = return_value is not None and return_value.value is None
+    
+    # --- Use docstring_extractor ---
+    doc_semantics = None
+    
+    # Try to get docstring directly from AST first
+    if func.doc_node:
+        docstring = func.doc_node.value
+        print(f"DEBUG: Found docstring in AST: {docstring}")
+        
+        # Create a simple function object with the docstring for parsing
+        class SimpleFunction:
+            def __init__(self, name, module, docstring):
+                self.__name__ = name
+                self.__module__ = module
+                self.__qualname__ = name
+                self.__doc__ = docstring
+        
+        simple_func = SimpleFunction(func.name, func.root().name, docstring)
+        doc_semantics = semantics_for(simple_func)
+        print(f"DEBUG: Extracted semantics from AST docstring: {doc_semantics}")
+    
+    # Fallback to trying to get the actual Python function object (but this likely won't work due to instrumentation)
+    if not doc_semantics:
+        pyfunc = None
+        try:
+            module_name = func.root().name
+            print(f"DEBUG: Attempting to import module '{module_name}' to get function object.")
 
+            mod = importlib.import_module(module_name)
+
+            # The function can be a method in a class or a standalone function.
+            parent = func.parent
+            if isinstance(parent, astroid.ClassDef):
+                # It's a method.
+                class_name = parent.name
+                py_class = getattr(mod, class_name, None)
+                if py_class:
+                    pyfunc = getattr(py_class, func.name, None)
+            else:
+                # It's a module-level function.
+                pyfunc = getattr(mod, func.name, None)
+
+            if pyfunc:
+                print(f"DEBUG: Successfully resolved function object for '{func.name}'.")
+                print(f"DEBUG: Function object type: {type(pyfunc)}")
+                print(f"DEBUG: Function docstring: {inspect.getdoc(pyfunc)}")
+                # This is where the docstring_parser is actually used.
+                doc_semantics = semantics_for(pyfunc)
+            else:
+                print(f"DEBUG: FAILED to resolve python function for '{func.name}'.")
+
+        except (ImportError, AttributeError) as e:
+            _LOGGER.warning(
+                "docstring_extractor could not resolve function %s: %s", func.name, e
+            )
+            print(
+                f"DEBUG: docstring_extractor could not resolve function '{func.name}': {e}"
+            )
+        except Exception as e:
+            _LOGGER.warning("docstring_extractor failed for %s: %s", func.name, e)
+            print(f"DEBUG: docstring_extractor failed for '{func.name}': {e}")
+
+    
     return FunctionDescription(
         end_line_no=func.tolineno,
         func=func,
@@ -565,4 +635,5 @@ def get_function_description(
         raises=function_analysis.exceptions,
         raises_assert=bool(function_analysis.asserts),
         start_line_no=func.fromlineno,
+        doc_semantics=doc_semantics,
     )
