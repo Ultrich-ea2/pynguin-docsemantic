@@ -8,15 +8,18 @@
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import inspect
 import logging
+import re
 
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import cast
 
 import pynguin.configuration as config
+import pynguin.testcase.testcase as tc
 import pynguin.testcase.statement as stmt
 import pynguin.utils.generic.genericaccessibleobject as gao
 
@@ -48,7 +51,7 @@ if config.configuration.pynguinml.ml_testing_enabled or TYPE_CHECKING:
     import pynguin.utils.pynguinml.ml_parsing_utils as mlpu
     import pynguin.utils.pynguinml.ml_testfactory_utils as mltu
     import pynguin.utils.pynguinml.ml_testing_resources as tr
-
+    
 
 # TODO(fk) find better name for this?
 # TODO split this monster!
@@ -936,34 +939,34 @@ class TestFactory:
         allow_none: bool = True,
         callable_accessible: gao.GenericCallableAccessibleObject | None = None,
     ) -> dict[str, vr.VariableReference]:
-        """Satisfy a list of parameters by reusing or creating variables.
+        """Satisfy the parameters of a callable.
 
         Args:
-            test_case: The test case
-            signature: The inferred signature of the method
-            position: The current position in the test case
-            recursion_depth: The recursion depth
-            allow_none: Whether a variable can be a None value
-            callable_accessible: The callable accessible
+            test_case: the test case to add the parameters to
+            signature: the signature of the callable
+            position: the position to add the parameters at
+            recursion_depth: the current recursion depth
+            allow_none: whether None is allowed as a parameter value
+            callable_accessible: the callable object for semantic information
 
         Returns:
-            A dict of variable references for the parameters
+            A dictionary mapping parameter names to variable references
 
         Raises:
             ConstructionFailedException: if construction of an object failed
         """
-        if position < 0:
-            position = test_case.size()
-
         parameters: dict[str, vr.VariableReference] = {}
-        self._logger.debug(
-            "Trying to satisfy %d parameters at position %d",
-            len(signature.original_parameters),
-            position,
-        )
+        
+        # Get semantic information if available
+        semantics = None
+        if callable_accessible is not None:
+            function_data = self._test_cluster.function_data_for_accessibles.get(callable_accessible)
+            if function_data and hasattr(function_data, "semantics"):
+                semantics = function_data.semantics
+                self._logger.debug("Found semantics for %s: %s", callable_accessible, semantics)
 
         for parameter_name, parameter_type in signature.get_parameter_types({}).items():
-            self._logger.debug("Current parameter type: %s", parameter_type)
+            self._logger.debug("Processing parameter: %s (type: %s)", parameter_name, parameter_type)
 
             previous_length = test_case.size()
 
@@ -974,13 +977,47 @@ class TestFactory:
             ):
                 continue
 
-            var = self._create_or_reuse_variable(
-                test_case,
-                parameter_type,
-                position,
-                recursion_depth,
-                allow_none=allow_none,
-            )
+            preferred_value = None
+
+            # Use semantic information from docstring extractor
+            if semantics and parameter_name in semantics.params:
+                param_spec = semantics.params[parameter_name]
+                self._logger.debug("Found docstring info for %s: %s", parameter_name, param_spec)
+
+                # Use example values if available
+                if param_spec.example_values:
+                    try:
+                        preferred_value = param_spec.example_values[0]
+                        self._logger.debug("Using example value for %s: %s", parameter_name, preferred_value)
+                    except Exception as e:
+                        self._logger.debug("Could not use example value for %s: %s", parameter_name, e)
+
+                # If no example, try constraint-based logic
+                if preferred_value is None and param_spec.constraint:
+                    preferred_value = self._get_preferred_value_from_constraint(param_spec.constraint)
+                    self._logger.debug("Using constraint-based value for %s: %s", parameter_name, preferred_value)
+
+            # If still no preferred value, check global constraints
+            if preferred_value is None and semantics and semantics.constraints:
+                for constraint in semantics.constraints:
+                    if parameter_name in constraint:
+                        preferred_value = self._get_preferred_value_from_constraint(constraint)
+                        self._logger.debug("Using global constraint-based value for %s: %s", parameter_name, preferred_value)
+                        break
+
+            # Use preferred value if available
+            if preferred_value is not None:
+                self._logger.debug("Creating variable from preferred value for %s: %s", parameter_name, preferred_value)
+                var = self._create_variable_from_value(preferred_value, parameter_type, test_case, position)
+            else:
+                self._logger.debug("No preferred value for %s, using default generation", parameter_name)
+                var = self._create_or_reuse_variable(
+                    test_case,
+                    parameter_type,
+                    position,
+                    recursion_depth,
+                    allow_none=allow_none,
+                )
 
             if not var:
                 raise ConstructionFailedException(
@@ -993,6 +1030,132 @@ class TestFactory:
 
         self._logger.debug("Satisfied %d parameters", len(parameters))
         return parameters
+
+    def _get_preferred_value_from_constraint(self, constraint: str) -> Any:
+        """Generate a preferred value based on a constraint string."""
+        constraint_lower = constraint.lower()
+        
+        import re
+        
+        # Parse comparison constraints
+        comparison_patterns = [
+            (r'(\w+)\s*>\s*(\d+)', lambda var, val: int(val) + 1),
+            (r'(\w+)\s*>=\s*(\d+)', lambda var, val: int(val)),
+            (r'(\w+)\s*<\s*(\d+)', lambda var, val: int(val) - 1),
+            (r'(\w+)\s*<=\s*(\d+)', lambda var, val: int(val)),
+            (r'(\w+)\s*!=\s*(\d+)', lambda var, val: int(val) + 1),
+            (r'(\w+)\s*==\s*(\d+)', lambda var, val: int(val)),
+        ]
+        
+        for pattern, value_func in comparison_patterns:
+            match = re.search(pattern, constraint)
+            if match:
+                var_name, value = match.groups()
+                try:
+                    return value_func(var_name, value)
+                except ValueError:
+                    continue
+        
+        # Handle keyword-based constraints
+        if "non-negative" in constraint_lower or ">= 0" in constraint:
+            return 0
+        elif "positive" in constraint_lower or "> 0" in constraint:
+            return 1
+        elif "non-zero" in constraint_lower or "!= 0" in constraint:
+            return 1
+        elif "zero" in constraint_lower or "== 0" in constraint:
+            return 0
+        elif "integer" in constraint_lower or "int" in constraint_lower:
+            return 0
+        elif "string" in constraint_lower or "str" in constraint_lower:
+            return ""
+        elif "list" in constraint_lower:
+            return []
+        elif "dict" in constraint_lower:
+            return {}
+        
+        return None
+
+    def _create_variable_from_value(self, value: Any, expected_type: ProperType, test_case: tc.TestCase, position: int) -> vr.VariableReference:
+        """Create a variable from a specific value."""
+        if isinstance(value, int):
+            stmt_obj = stmt.IntPrimitiveStatement(test_case, value)
+        elif isinstance(value, float):
+            stmt_obj = stmt.FloatPrimitiveStatement(test_case, value)
+        elif isinstance(value, str):
+            stmt_obj = stmt.StringPrimitiveStatement(test_case, value)
+        elif isinstance(value, bool):
+            stmt_obj = stmt.BooleanPrimitiveStatement(test_case, value)
+        elif isinstance(value, list):
+            elements = []
+            for item in value:
+                if isinstance(item, (int, float, str, bool)):
+                    if isinstance(item, int):
+                        elem_stmt = stmt.IntPrimitiveStatement(test_case, item)
+                    elif isinstance(item, float):
+                        elem_stmt = stmt.FloatPrimitiveStatement(test_case, item)
+                    elif isinstance(item, str):
+                        elem_stmt = stmt.StringPrimitiveStatement(test_case, item)
+                    elif isinstance(item, bool):
+                        elem_stmt = stmt.BooleanPrimitiveStatement(test_case, item)
+                    elements.append(elem_stmt.ret_val)
+                else:
+                    return self._create_or_reuse_variable(
+                        test_case, expected_type, position, 0, allow_none=True
+                    )
+            stmt_obj = stmt.ListStatement(test_case, expected_type, elements)
+        elif isinstance(value, dict):
+            elements = []
+            for key, val in value.items():
+                if isinstance(key, (int, float, str, bool)) and isinstance(val, (int, float, str, bool)):
+                    if isinstance(key, int):
+                        key_stmt = stmt.IntPrimitiveStatement(test_case, key)
+                    elif isinstance(key, float):
+                        key_stmt = stmt.FloatPrimitiveStatement(test_case, key)
+                    elif isinstance(key, str):
+                        key_stmt = stmt.StringPrimitiveStatement(test_case, key)
+                    elif isinstance(key, bool):
+                        key_stmt = stmt.BooleanPrimitiveStatement(test_case, key)
+                    
+                    if isinstance(val, int):
+                        val_stmt = stmt.IntPrimitiveStatement(test_case, val)
+                    elif isinstance(val, float):
+                        val_stmt = stmt.FloatPrimitiveStatement(test_case, val)
+                    elif isinstance(val, str):
+                        val_stmt = stmt.StringPrimitiveStatement(test_case, val)
+                    elif isinstance(val, bool):
+                        val_stmt = stmt.BooleanPrimitiveStatement(test_case, val)
+                    
+                    elements.append((key_stmt.ret_val, val_stmt.ret_val))
+                else:
+                    return self._create_or_reuse_variable(
+                        test_case, expected_type, position, 0, allow_none=True
+                    )
+            stmt_obj = stmt.DictStatement(test_case, expected_type, elements)
+        elif isinstance(value, tuple):
+            elements = []
+            for item in value:
+                if isinstance(item, (int, float, str, bool)):
+                    if isinstance(item, int):
+                        elem_stmt = stmt.IntPrimitiveStatement(test_case, item)
+                    elif isinstance(item, float):
+                        elem_stmt = stmt.FloatPrimitiveStatement(test_case, item)
+                    elif isinstance(item, str):
+                        elem_stmt = stmt.StringPrimitiveStatement(test_case, item)
+                    elif isinstance(item, bool):
+                        elem_stmt = stmt.BooleanPrimitiveStatement(test_case, item)
+                    elements.append(elem_stmt.ret_val)
+                else:
+                    return self._create_or_reuse_variable(
+                        test_case, expected_type, position, 0, allow_none=True
+                    )
+            stmt_obj = stmt.TupleStatement(test_case, expected_type, elements)
+        else:
+            return self._create_or_reuse_variable(
+                test_case, expected_type, position, 0, allow_none=True
+            )
+        
+        return test_case.add_variable_creating_statement(stmt_obj, position)
 
     def _reuse_variable(
         self, test_case: tc.TestCase, parameter_type: ProperType, position: int
@@ -1331,6 +1494,17 @@ class TestFactory:
             if statement.accessible_object() in self._test_cluster.accessible_objects_under_test:
                 return True
         return False
+
+    def _get_semantics_for_function(self, func_name: str) -> FunctionSemantics | None:
+        """Get semantics for a function if available."""
+        # Only print debug info once per function or remove entirely
+        if func_name in self._test_cluster.functions:
+            func_data = self._test_cluster.functions[func_name]
+            if func_data.semantics:
+                # Remove or comment out this debug line:
+                # print(f"[DEBUG] Test factory found semantics: {func_data.semantics}")
+                return func_data.semantics
+        return None
 
 
 class MLTestFactory(TestFactory):
