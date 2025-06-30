@@ -159,9 +159,29 @@ testpaths = [
 # But they don't actually contains tests, so we set an empty matcher for the class name.
 python_classes = ''
 
+[tool.poetry.plugins."pynguin.initialiser"]
+docstring-seed = "pynguin.semantics.ga_seeding:DocstringSeedInitialiser"
+
+[tool.poetry.plugins."pynguin.searchobserver"]
+docstring-seeding = "pynguin.semantics.docstring_seeding_observer:DocstringSeedingObserver"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[search]
+test_fitness_functions = [
+  
+  "pynguin.ga.fitnessfunctions.branchgoals.BranchCoverageTestFitness",
+  
+  "pynguin.semantics.fitness_docstring_penalty.ConstraintPenaltyFitness"
+]
+
+
+
+[tool.poetry.plugins."pynguin.testfitness"]
+constraint-penalty = "pynguin.semantics.fitness_docstring_penalty:ConstraintPenaltyFitness"
+
 
 
 [tool.ruff]
