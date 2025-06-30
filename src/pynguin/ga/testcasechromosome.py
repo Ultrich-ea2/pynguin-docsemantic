@@ -102,6 +102,9 @@ class TestCaseChromosome(chrom.Chromosome):
             self.changed = True
 
     def mutate(self) -> None:  # noqa: D102
+        if getattr(self, "frozen", False):
+            # If the chromosome is frozen, we do not mutate it.
+            return
         changed = False
 
         if (
