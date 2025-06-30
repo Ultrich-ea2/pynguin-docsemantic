@@ -30,9 +30,7 @@ class DocstringConstraintPenalty(TestFitnessFunction):
             violations += getattr(stmt, "_constraint_violated", 0)
         return [violations * self.penalty_per_violation]
 
-    # ------------------------------------------------------------------ #
-    # Pflicht-Eigenschaften für Pynguin
-    # ------------------------------------------------------------------ #
+
     @property
     def num_objectives(self) -> int:   # noqa: D401
         return 1
