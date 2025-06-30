@@ -67,6 +67,10 @@ from pynguin.testcase.execution import TypeTracingTestCaseExecutor
 from pynguin.utils.exceptions import ConfigurationException
 from pynguin.utils.orderedset import OrderedSet
 
+from pynguin.semantics.docstring_seeding_observer import DocstringSeedingObserver
+# from pynguin.semantics.fitness_docstring_bonus import DocstringSeedBonusFitness
+# from pynguin.semantics.fitness_param_constraint import ParameterConstraintFitness
+
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -282,6 +286,10 @@ class TestSuiteGenerationAlgorithmFactory(GenerationAlgorithmFactory[tsc.TestSui
         strategy.add_search_observer(sso.SequenceStartTimeObserver())
         strategy.add_search_observer(sso.IterationObserver())
         strategy.add_search_observer(sso.BestIndividualObserver())
+        
+        if config.configuration.enable_seed_examples:
+           observer = DocstringSeedingObserver(strategy, self._test_cluster)
+           strategy.add_search_observer(observer)
 
         crossover_function = self._get_crossover_function()
         strategy.crossover_function = crossover_function
@@ -393,6 +401,20 @@ class TestSuiteGenerationAlgorithmFactory(GenerationAlgorithmFactory[tsc.TestSui
                     bg.create_checked_coverage_fitness_functions(self._executor)
                 )
             self._logger.info("Instantiated %d fitness functions", len(fitness_functions))
+
+            # if config.configuration.use_docstring_semantics:
+            #   if not isinstance(strategy, DynaMOSAAlgorithm):
+            #      if not any(isinstance(f, DocstringSeedBonusFitness) for f in fitness_functions):
+            #         fitness_functions.add(DocstringSeedBonusFitness(executor=self._executor))
+
+            #   from pynguin.analyses.module import ModuleTestCluster
+            #   for mod in getattr(self._test_cluster, "modules", []):
+            #         for name, func in mod.__dict__.items():
+            #             if callable(func) and not name.startswith("_"):
+            #                 from pynguin.semantics.docstring_extractor import semantics_for
+            #                 if semantics_for(func) is not None:
+            #                    fitness_functions.add(ParameterConstraintFitness(self._executor, func=func))
+
             return fitness_functions
         return OrderedSet()
 
