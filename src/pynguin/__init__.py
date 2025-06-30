@@ -5,6 +5,11 @@
 #  SPDX-License-Identifier: MIT
 #
 """Pynguin is an automated unit test generation framework for Python."""
+# src/pynguin/__main__.py  (ganz oben, nach den Standard-Imports)
+import logging
+logging.getLogger("pynguin.ga.algorithms").setLevel(logging.INFO)
+logging.getLogger("pynguin.ga.operators").setLevel(logging.DEBUG)
+
 
 import copyreg
 
