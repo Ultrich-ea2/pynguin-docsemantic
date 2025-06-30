@@ -807,10 +807,13 @@ class Configuration:
     subprocess: bool = False
     """Run the test generation in a subprocess."""
 
+    enable_seed_examples: bool = False
+    """Enable the seeding of examples from docstrings."""
+
 
 # Singleton instance of the configuration.
 configuration = Configuration(
     project_path="",
     module_name="",
-    test_case_output=TestCaseOutputConfiguration(output_path=""),
+    test_case_output=TestCaseOutputConfiguration(output_path="."),
 )
