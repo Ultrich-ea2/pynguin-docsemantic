@@ -31,11 +31,13 @@ class Chromosome(ABC):
             self.changed: bool = True
             self.distance: float = -1
             self.rank: int = -1
+            self.frozen: bool = False
         else:
             self.computation_cache = orig.computation_cache.clone(self)
             self.changed = orig.changed
             self.distance = orig.distance
             self.rank = orig.rank
+            self.frozen  = getattr(orig, "frozen", False)
 
     @abstractmethod
     def size(self) -> int:
