@@ -18,7 +18,6 @@ from pynguin.ga.testcasechromosome import TestCaseChromosome as _TCC
 
 from .ga_seeding import DocstringSeedInitialiser  # noqa: F401  (Re-Export)
 from .docstring_seeding_observer import DocstringSeedingObserver  # noqa: F401
-from .docstring_extractor import FunctionSemantics, ParamSpec, semantics_for  # noqa: F401
 from .docstring_constraints import extract_examples, extract_preconditions, parse_docstring
 
 
