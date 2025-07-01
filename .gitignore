@@ -113,3 +113,8 @@ cov_html/
 pynguin-report/
 docs/_build
 .run/
+
+# Pynguin artefacts
+pynguin-tests*
+pynguin.tests/
+ausgabe.txt
