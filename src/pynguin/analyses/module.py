@@ -1160,7 +1160,7 @@ def __analyse_function(
 
     try:
         func_desc = get_function_description(
-            __get_function_ast(func_name, module_tree)
+            get_function_node_from_ast(module_tree, func_name)
         )
     except Exception as e:
         LOGGER.debug("Could not get function description for %s: %s", func_name, e)
@@ -1168,13 +1168,13 @@ def __analyse_function(
 
     # Use AST-based semantics if available
     semantics = None
-    if func_desc and func_desc.semantics:
-        semantics = func_desc.semantics
+    if func_desc and func_desc.doc_semantics:
+        semantics = func_desc.doc_semantics
     else:
         semantics = semantics_for(func)
 
     # Create inferred signature
-    inferred_signature = type_inference_strategy.infer_signature(func)
+    inferred_signature = test_cluster.type_system.infer_type_info(func, type_inference_strategy=type_inference_strategy)
     
     # Create GenericFunction object
     generic_function = GenericFunction(
@@ -1187,9 +1187,9 @@ def __analyse_function(
     # Create CallableData
     callable_data = CallableData(
         accessible=generic_function,
-        tree=__get_function_ast(func_name, module_tree),
+        tree=get_function_node_from_ast(module_tree, func_name),
         description=func_desc,
-        cyclomatic_complexity=__get_mccabe_complexity(__get_function_ast(func_name, module_tree)),
+        cyclomatic_complexity=__get_mccabe_complexity(get_function_node_from_ast(module_tree, func_name)),
         semantics=semantics,
     )
 
@@ -1315,15 +1315,15 @@ def __analyse_method(
 
     try:
         method_desc = get_function_description(
-            __get_method_ast(method_name, class_tree)
+            get_function_node_from_ast(class_tree, method_name)
         )
     except Exception as e:
         LOGGER.debug("Could not get method description for %s: %s", method_name, e)
         method_desc = None
 
     semantics = None
-    if method_desc and method_desc.semantics:
-        semantics = method_desc.semantics
+    if method_desc and method_desc.doc_semantics:
+        semantics = method_desc.doc_semantics
     else:
         semantics = semantics_for(method)
 
