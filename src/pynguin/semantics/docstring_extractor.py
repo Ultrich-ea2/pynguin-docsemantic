@@ -90,7 +90,8 @@ def _extract_constraints_from_description(text: str, param_name: str) -> str | N
         constraints.append(f"isinstance({param_name}, int)")
     if "string" in text_lower or "str" in text_lower:
         constraints.append(f"isinstance({param_name}, str)")
-    
+    if "float" in text_lower or "double" in text_lower:        # python does not have double as a data type, but for docstrings we check both
+        constraints.append(f"isinstance({param_name}, float)")
     return "; ".join(constraints) if constraints else None
 
 def _extract_default_value(text: str) -> Any:
