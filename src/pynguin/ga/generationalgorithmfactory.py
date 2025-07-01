@@ -68,6 +68,9 @@ from pynguin.utils.exceptions import ConfigurationException
 from pynguin.utils.orderedset import OrderedSet
 
 from pynguin.semantics.docstring_seeding_observer import DocstringSeedingObserver
+from pynguin.ga.fitness_param_constraint import ParamConstraintViolationFitness
+from pynguin.semantics.fitness_docstring_penalty import DocstringPenaltyFitness   # falls noch nicht da
+
 # from pynguin.semantics.fitness_docstring_bonus import DocstringSeedBonusFitness
 # from pynguin.semantics.fitness_param_constraint import ParameterConstraintFitness
 
@@ -401,6 +404,24 @@ class TestSuiteGenerationAlgorithmFactory(GenerationAlgorithmFactory[tsc.TestSui
                     bg.create_checked_coverage_fitness_functions(self._executor)
                 )
             self._logger.info("Instantiated %d fitness functions", len(fitness_functions))
+            
+            if config.configuration.enable_seed_examples and config.configuration.algorithm != config.Algorithm.DYNAMOSA:
+                self._logger.info("Adding DocstringPenaltyFitness")
+                fitness_functions.add(DocstringPenaltyFitness(self._executor))
+
+            # if config.configuration.enable_seed_examples:
+            #     fitness_functions.add(DocstringPenaltyFitness(executor=self._executor))
+            #     # Beispiel-Constraint – hier nur eine Dummy-Lambda:
+            #     preds_map = getattr(self._test_cluster, "constraint_preds", {})
+            #     for pred_list in preds_map.values():
+            #         for pred in pred_list:
+            #             fitness_functions.add(
+            #                 ParamConstraintViolationFitness(
+            #                     ParamConstraintViolationFitness(self._executor, predicate=pred),
+            #                     predicate=pred,
+            #                 )
+            #             )
+
 
             # if config.configuration.use_docstring_semantics:
             #   if not isinstance(strategy, DynaMOSAAlgorithm):
@@ -429,6 +450,18 @@ class TestSuiteGenerationAlgorithmFactory(GenerationAlgorithmFactory[tsc.TestSui
             test_suite_ffs.update([ff.BranchDistanceTestSuiteFitnessFunction(self._executor)])
         if config.CoverageMetric.CHECKED in coverage_metrics:
             test_suite_ffs.update([ff.StatementCheckedTestSuiteFitnessFunction(self._executor)])
+        # if config.configuration.enable_seed_examples:
+        #     test_suite_ffs.add(DocstringPenaltyFitness(self._executor))
+
+        #     preds_map = getattr(self._test_cluster, "constraint_preds", {})
+        #     for pred_list in preds_map.values():
+        #         for pred in pred_list:
+        #             test_suite_ffs.add(
+        #                 ParamConstraintViolationFitness(
+        #                     self._executor,
+        #                     pred
+        #                 )
+        #             )    
         return test_suite_ffs
 
     def _get_test_suite_coverage_functions(
