@@ -9,6 +9,7 @@ None.  Reicht für erste Tests – später erweitern.
 from __future__ import annotations
 from typing import Any
 
+from pynguin.testcase import statement as stmt
 from pynguin.testcase.statement import PrimitiveStatement
 from pynguin.testcase.variablereference import VariableReference
 from pynguin.testcase.defaulttestcase import DefaultTestCase
@@ -17,9 +18,6 @@ from pynguin.testcase.defaulttestcase import DefaultTestCase
 class PrimitiveFactory:
     """Erzeugt PrimitiveStatements für die GA-Population."""
 
-    # ------------------------------------------------------------------ #
-    # Kern-API
-    # ------------------------------------------------------------------ #
     def create_primitive(self, value: Any) -> PrimitiveStatement:  # noqa: D401
         """Gibt ein neues PrimitiveStatement mit dem übergebenen Wert zurück."""
         test = DefaultTestCase()
@@ -28,9 +26,6 @@ class PrimitiveFactory:
         test.add_statement(stmt)
         return stmt
     
-        # ------------------------------------------------------------------ #
-    # Funktions-Aufrufe (für Docstring-Seeding)
-    # ------------------------------------------------------------------ #
     def create_function_call(self, func: callable, first_arg_index: int, arity: int):
         """        Baut ein FunctionStatement für ``func``.
         ``first_arg_index`` = Index der ersten Argument‐Variable
@@ -45,7 +40,6 @@ class PrimitiveFactory:
         return FunctionStatement(lhs, func, args)
 
 
-    # Convenience-Shortcuts -------------------------------------------- #
     def create_int(self, value: int) -> PrimitiveStatement:
         return self.create_primitive(value)
 
@@ -71,18 +65,13 @@ class PrimitiveFactory:
             return rhs - 1
         return rhs
 
-    # ------------------------------------------------------------------ #
-    # Universelle Helfer-Methode (neu)
-    # ------------------------------------------------------------------ #
     @staticmethod
-    def make_primitive(value: Any, tc: DefaultTestCase):
-        """Erstellt das passende PrimitiveStatement für *value* in *tc*."""
-        from pynguin.testcase import statement as stmt  # lokaler Import
-
-        try:  # neuere Pynguin-Version
-            return PrimitiveFactory().create_primitive(value, test_case=tc)  # type: ignore[arg-type]
-        except TypeError:
-            # Fallback für ältere API-Versionen
+    def make_primitive(value, tc):             # -> stmt.PrimitiveStatement
+        """Erzeuge ein Literal-Statement, kompatibel zu alter / neuer API."""
+        try:
+            return PrimitiveFactory(test_cluster=tc.test_cluster)\
+                .create_primitive(value, test_case=tc) 
+        except TypeError:                      # Fallback – alte API per Typ-Switch
             if value is None:
                 return stmt.NoneStatement(tc)
             if isinstance(value, bool):
@@ -95,7 +84,6 @@ class PrimitiveFactory:
                 return stmt.BytesPrimitiveStatement(tc, value)
             if isinstance(value, str):
                 return stmt.StringPrimitiveStatement(tc, value)
-
-            prim = PrimitiveFactory().create_primitive(value)
-            prim.test_case = tc  # type: ignore[attr-defined]
-            return prim
+            tmp = PrimitiveFactory().create_primitive(value)
+            tmp.test_case = tc
+            return tmp
