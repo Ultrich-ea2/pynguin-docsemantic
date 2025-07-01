@@ -2,15 +2,16 @@
 
 def add(x: int, y: int):
     """
-    >>> add(3, 5)
-    8
+    >>> add(2, 20)
+    22
     
     >>> add(0, 5)
     5
 
 
     Preconditions
-    x >37
+    x > 1
+    y > 10
     """
     if x <= 0 or y <= 0:
         raise ValueError("x und y müssen > 0 sein")
