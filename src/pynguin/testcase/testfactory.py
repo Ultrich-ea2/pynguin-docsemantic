@@ -1007,7 +1007,10 @@ class TestFactory:
                         break
 
             # Use preferred value if available
-            if preferred_value is not None:
+            if preferred_value is not None: 
+                if isinstance(preferred_value, list):
+                    # Pick the first value for now, or iterate to generate multiple tests
+                    preferred_value = preferred_value[0]
                 self._logger.debug("Creating variable from preferred value for %s: %s", parameter_name, preferred_value)
                 var = self._create_variable_from_value(preferred_value, parameter_type, test_case, position)
             else:
@@ -1068,6 +1071,7 @@ class TestFactory:
                 values = [int(round(v)) for v in values]
             return values
 
+        # Simple comparison constraints (with float/int support)
         number_pattern = r'([0-9]*\.?[0-9]+)'
         comparison_patterns = [
             (rf'(\w+)\s*>\s*{number_pattern}', lambda var, val: float(val) + 1.0),
@@ -1090,7 +1094,7 @@ class TestFactory:
                         return float(result)
                 except ValueError:
                     continue
-        
+        # Fallback
         return None
 
     def _create_variable_from_value(self, value: Any, expected_type: ProperType, test_case: tc.TestCase, position: int) -> vr.VariableReference:
