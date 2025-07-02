@@ -33,6 +33,7 @@ from pynguin.analyses.typesystem import ProperType
 from pynguin.analyses.typesystem import TupleType
 from pynguin.analyses.typesystem import is_collection_type
 from pynguin.analyses.typesystem import is_primitive_type
+from pynguin.semantics.docstring_extractor import FunctionSemantics
 from pynguin.utils import randomness
 from pynguin.utils.exceptions import ConstructionFailedException
 from pynguin.utils.type_utils import is_arg_or_kwarg
@@ -994,14 +995,14 @@ class TestFactory:
 
                 # If no example, try constraint-based logic
                 if preferred_value is None and param_spec.constraint:
-                    preferred_value = self._get_preferred_value_from_constraint(param_spec.constraint)
+                    preferred_value = self._get_preferred_value_from_constraint(param_spec.constraint, param_spec.type_name)
                     self._logger.debug("Using constraint-based value for %s: %s", parameter_name, preferred_value)
 
             # If still no preferred value, check global constraints
             if preferred_value is None and semantics and semantics.constraints:
                 for constraint in semantics.constraints:
                     if parameter_name in constraint:
-                        preferred_value = self._get_preferred_value_from_constraint(constraint)
+                        preferred_value = self._get_preferred_value_from_constraint(constraint, param_spec.type_name)
                         self._logger.debug("Using global constraint-based value for %s: %s", parameter_name, preferred_value)
                         break
 
@@ -1031,20 +1032,16 @@ class TestFactory:
         self._logger.debug("Satisfied %d parameters", len(parameters))
         return parameters
 
-    def _get_preferred_value_from_constraint(self, constraint: str) -> Any:
+    def _get_preferred_value_from_constraint(self, constraint: str, type_name: str = None) -> Any:
         """Generate a preferred value based on a constraint string."""
-        constraint_lower = constraint.lower()
-        
-        import re
-        
-        # Parse comparison constraints
+        number_pattern = r'([0-9]*\.?[0-9]+)'
         comparison_patterns = [
-            (r'(\w+)\s*>\s*(\d+)', lambda var, val: int(val) + 1),
-            (r'(\w+)\s*>=\s*(\d+)', lambda var, val: int(val)),
-            (r'(\w+)\s*<\s*(\d+)', lambda var, val: int(val) - 1),
-            (r'(\w+)\s*<=\s*(\d+)', lambda var, val: int(val)),
-            (r'(\w+)\s*!=\s*(\d+)', lambda var, val: int(val) + 1),
-            (r'(\w+)\s*==\s*(\d+)', lambda var, val: int(val)),
+            (rf'(\w+)\s*>\s*{number_pattern}', lambda var, val: float(val) + 1.0),
+            (rf'(\w+)\s*>=\s*{number_pattern}', lambda var, val: float(val)),
+            (rf'(\w+)\s*<\s*{number_pattern}', lambda var, val: float(val) - 1.0),
+            (rf'(\w+)\s*<=\s*{number_pattern}', lambda var, val: float(val)),
+            (rf'(\w+)\s*!=\s*{number_pattern}', lambda var, val: float(val) + 1.0),
+            (rf'(\w+)\s*==\s*{number_pattern}', lambda var, val: float(val)),
         ]
         
         for pattern, value_func in comparison_patterns:
@@ -1052,26 +1049,31 @@ class TestFactory:
             if match:
                 var_name, value = match.groups()
                 try:
-                    return value_func(var_name, value)
+                    result = value_func(var_name, value)
+                    if type_name and type_name.lower() == "int":
+                        return int(result)
+                    else:
+                        return float(result)
                 except ValueError:
                     continue
         
-        # Handle keyword-based constraints
-        if "non-negative" in constraint_lower or ">= 0" in constraint:
+        # Keyword-based logic
+        constraint_lower = constraint.lower()
+        if "non-negative" in constraint_lower or ">= 0" in constraint_lower:
+            return 0 if (not type_name or type_name.lower() == "int") else 0.0
+        if "positive" in constraint_lower or "> 0" in constraint_lower:
+            return 1 if (not type_name or type_name.lower() == "int") else 1.0
+        if "non-zero" in constraint_lower or "!= 0" in constraint_lower:
+            return 1 if (not type_name or type_name.lower() == "int") else 1.0
+        if "zero" in constraint_lower or "== 0" in constraint_lower:
+            return 0 if (not type_name or type_name.lower() == "int") else 0.0
+        if "integer" in constraint_lower or "int" in constraint_lower:
             return 0
-        elif "positive" in constraint_lower or "> 0" in constraint:
-            return 1
-        elif "non-zero" in constraint_lower or "!= 0" in constraint:
-            return 1
-        elif "zero" in constraint_lower or "== 0" in constraint:
-            return 0
-        elif "integer" in constraint_lower or "int" in constraint_lower:
-            return 0
-        elif "string" in constraint_lower or "str" in constraint_lower:
+        if "string" in constraint_lower or "str" in constraint_lower:
             return ""
-        elif "list" in constraint_lower:
+        if "list" in constraint_lower:
             return []
-        elif "dict" in constraint_lower:
+        if "dict" in constraint_lower:
             return {}
         
         return None
