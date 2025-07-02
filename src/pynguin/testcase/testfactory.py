@@ -1034,6 +1034,40 @@ class TestFactory:
 
     def _get_preferred_value_from_constraint(self, constraint: str, type_name: str = None) -> Any:
         """Generate a preferred value based on a constraint string."""
+            
+        # Keyword-based logic
+        constraint_lower = constraint.lower()
+        if "non-negative" in constraint_lower or ">= 0" in constraint_lower:
+            return 0 if (not type_name or type_name.lower() == "int") else 0.0
+        if "positive" in constraint_lower or "> 0" in constraint_lower:
+            return 1 if (not type_name or type_name.lower() == "int") else 1.0
+        if "non-zero" in constraint_lower or "!= 0" in constraint_lower:
+            return 1 if (not type_name or type_name.lower() == "int") else 1.0
+        if "zero" in constraint_lower or "== 0" in constraint_lower:
+            return 0 if (not type_name or type_name.lower() == "int") else 0.0
+        if "integer" in constraint_lower or "int" in constraint_lower:
+            return 0
+        if "string" in constraint_lower or "str" in constraint_lower:
+            return ""
+        if "list" in constraint_lower:
+            return []
+        if "dict" in constraint_lower:
+            return {}
+        
+        # Compound constraints (e.g., 0 < x < 10)
+        # This will return a list of boundary values
+        compound_pattern = r'([-\d\.]+)\s*<\s*(\w+)\s*<\s*([-\d\.]+)'
+        match = re.search(compound_pattern, constraint)
+        if match:
+            lower, var, upper = match.groups()
+            lower = float(lower)
+            upper = float(upper)
+            # Generate boundary values: just above lower, just below upper, and mid
+            values = [lower + 1, upper - 1, (lower + upper) / 2]
+            if type_name and type_name.lower() == "int":
+                values = [int(round(v)) for v in values]
+            return values
+
         number_pattern = r'([0-9]*\.?[0-9]+)'
         comparison_patterns = [
             (rf'(\w+)\s*>\s*{number_pattern}', lambda var, val: float(val) + 1.0),
@@ -1056,25 +1090,6 @@ class TestFactory:
                         return float(result)
                 except ValueError:
                     continue
-        
-        # Keyword-based logic
-        constraint_lower = constraint.lower()
-        if "non-negative" in constraint_lower or ">= 0" in constraint_lower:
-            return 0 if (not type_name or type_name.lower() == "int") else 0.0
-        if "positive" in constraint_lower or "> 0" in constraint_lower:
-            return 1 if (not type_name or type_name.lower() == "int") else 1.0
-        if "non-zero" in constraint_lower or "!= 0" in constraint_lower:
-            return 1 if (not type_name or type_name.lower() == "int") else 1.0
-        if "zero" in constraint_lower or "== 0" in constraint_lower:
-            return 0 if (not type_name or type_name.lower() == "int") else 0.0
-        if "integer" in constraint_lower or "int" in constraint_lower:
-            return 0
-        if "string" in constraint_lower or "str" in constraint_lower:
-            return ""
-        if "list" in constraint_lower:
-            return []
-        if "dict" in constraint_lower:
-            return {}
         
         return None
 
