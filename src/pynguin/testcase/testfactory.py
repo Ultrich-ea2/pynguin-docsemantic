@@ -1036,7 +1036,7 @@ class TestFactory:
         return parameters
 
     def _get_preferred_value_from_constraint(self, constraint: str, type_name: str = None) -> Any:
-        """Generate a preferred value based on a constraint string."""
+        """Generate a preferred value based on a constraint."""
             
         # Keyword-based logic
         constraint_lower = constraint.lower()
@@ -1065,10 +1065,13 @@ class TestFactory:
             lower, var, upper = match.groups()
             lower = float(lower)
             upper = float(upper)
-            # Generate boundary values: just above lower, just below upper, and mid
-            values = [lower + 1, upper - 1, (lower + upper) / 2]
             if type_name and type_name.lower() == "int":
-                values = [int(round(v)) for v in values]
+                # For ints, use just inside and at the boundaries
+                values = [int(lower) + 1, int(upper) - 1, int((lower + upper) // 2)]
+            else:
+                # For floats, use a small epsilon
+                epsilon = 0.0001
+                values = [lower + epsilon, upper - epsilon, (lower + upper) / 2]
             return values
 
         # Simple comparison constraints (with float/int support)
