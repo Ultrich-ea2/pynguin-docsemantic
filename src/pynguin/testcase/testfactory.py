@@ -1009,8 +1009,8 @@ class TestFactory:
             # Use preferred value if available
             if preferred_value is not None: 
                 if isinstance(preferred_value, list):
-                    # Pick the first value for now, or iterate to generate multiple tests
-                    preferred_value = preferred_value[0]
+                    # Randomly select from the list of boundary values
+                    preferred_value = randomness.choice(preferred_value)
                 self._logger.debug("Creating variable from preferred value for %s: %s", parameter_name, preferred_value)
                 var = self._create_variable_from_value(preferred_value, parameter_type, test_case, position)
             else:
@@ -1062,7 +1062,7 @@ class TestFactory:
         compound_pattern = r'([-\d\.]+)\s*<\s*(\w+)\s*<\s*([-\d\.]+)'
         match = re.search(compound_pattern, constraint)
         if match:
-            lower, var, upper = match.groups()
+            lower, _, upper = match.groups()
             lower = float(lower)
             upper = float(upper)
             if type_name and type_name.lower() == "int":
