@@ -9,7 +9,7 @@
 import dataclasses
 import enum
 import time
-
+print("[DEBUG] configuration called")
 from pynguin.utils.statistics.runtimevariable import RuntimeVariable
 
 
@@ -796,7 +796,7 @@ class Configuration:
     """Configuration used for the RANDOM algorithm."""
 
     use_docstring_semantics: bool = True
-    """If True, Pynguin seeds search with constraints/examples extracted from docstrings."""
+    """If True, Pynguin uses semantic information extracted from docstrings for test generation."""
 
     ignore_modules: list[str] = dataclasses.field(default_factory=list)
     """Ignore the modules specified here from the module analysis."""
@@ -806,7 +806,6 @@ class Configuration:
 
     subprocess: bool = False
     """Run the test generation in a subprocess."""
-
 
 # Singleton instance of the configuration.
 configuration = Configuration(
