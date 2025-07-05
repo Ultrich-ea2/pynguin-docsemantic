@@ -960,7 +960,7 @@ class TestFactory:
         
         # Get semantic information if available
         semantics = None
-        if callable_accessible is not None:
+        if callable_accessible is not None and config.configuration.use_docstring_semantics:
             function_data = self._test_cluster.function_data_for_accessibles.get(callable_accessible)
             if function_data and hasattr(function_data, "semantics"):
                 semantics = function_data.semantics
