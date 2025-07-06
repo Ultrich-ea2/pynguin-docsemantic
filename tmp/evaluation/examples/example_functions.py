@@ -1,24 +1,24 @@
-def collection_constraints(numbers: list) -> float:
-    """
-    Calculate the average of a list of positive numbers.
-
-    Args:
-        numbers (list): A list of numbers.
-            Must satisfy: len(numbers) > 0
-            Must satisfy: all(x > 0 for x in numbers)
-
-    Returns:
-        float: The average of the numbers in the list.
-
-    Example:
-        >>> collection_constraints([1, 2, 3, 4])
-        2.5
-    """
-    if not numbers:
-        raise ValueError("List cannot be empty")
-    if any(x <= 0 for x in numbers):
-        raise ValueError("All numbers must be positive")
-    return sum(numbers) / len(numbers)
+# def collection_constraints(numbers: list) -> float:
+#     """
+#     Calculate the average of a list of positive numbers.
+#
+#     Args:
+#         numbers (list): A list of numbers.
+#             Must satisfy: len(numbers) > 0
+#             Must satisfy: all(x > 0 for x in numbers)
+#
+#     Returns:
+#         float: The average of the numbers in the list.
+#
+#     Example:
+#         >>> collection_constraints([1, 2, 3, 4])
+#         2.5
+#     """
+#     if not numbers:
+#         raise ValueError("List cannot be empty")
+#     if any(x <= 0 for x in numbers):
+#         raise ValueError("All numbers must be positive")
+#     return sum(numbers) / len(numbers)
 
 
 def numeric_range_example(value: int) -> bool:
