@@ -7,7 +7,7 @@ import argparse
 from pathlib import Path
 import sys
 
-def run_pynguin(project_path, output_path, module_name, use_semantics=False, iterations=100):
+def run_pynguin(project_path, output_path, module_name, use_semantics=False, iterations=100, verbose=False):
     """Run Pynguin with the specified parameters."""
     # Create a specific report directory within the output path
     report_dir = os.path.join(output_path, "pynguin-report")
@@ -24,8 +24,10 @@ def run_pynguin(project_path, output_path, module_name, use_semantics=False, ite
         StatisticsOutputConfiguration,
         StoppingConfiguration,
         SearchAlgorithmConfiguration,
-        SeedingConfiguration
+        SeedingConfiguration,
+        Algorithm
     )
+    import dataclasses
 
     # Create configuration with proper nested configuration objects
     config = Configuration(
@@ -48,13 +50,24 @@ def run_pynguin(project_path, output_path, module_name, use_semantics=False, ite
         ),
         seeding=SeedingConfiguration(
             seed=42
-        )
+        ),
+        algorithm=Algorithm.MOSA
     )
 
     if use_semantics:
         config.enable_seed_examples = True
+        config.use_docstring_semantics = True
 
-    print(f"  Executing pynguin with configuration: {config}")
+    if verbose:
+        # Set up verbose logging in Pynguin
+        os.environ["PYNGUIN_LOG_LEVEL"] = "DEBUG"
+        print(f"  Running in verbose mode with configuration:")
+        for field in dataclasses.fields(config):
+            field_name = field.name
+            field_value = getattr(config, field_name)
+            print(f"    {field_name}: {field_value}")
+    else:
+        print(f"  Executing pynguin with configuration: {config}")
 
     try:
         # Run pynguin
@@ -87,11 +100,13 @@ def main():
     parser.add_argument("--runs", type=int, default=2, help="Number of runs for each configuration")
     parser.add_argument("--iterations", type=int, default=200, help="Maximum iterations for Pynguin")
     parser.add_argument("--project-path", type=str, default="tmp/evaluation/examples", help="Path to project")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
     args = parser.parse_args()
 
     NUM_RUNS = args.runs
     PROJECT_PATH = args.project_path
     MAX_ITERATIONS = args.iterations
+    VERBOSE = args.verbose
 
     print("Note: This script sets PYNGUIN_DANGER_AWARE=1 to allow Pynguin to run.")
     print("      See https://pynguin.readthedocs.io/en/latest/user/quickstart.html for details.")
@@ -138,7 +153,7 @@ def main():
 
             start_time = time.time()
             result = run_pynguin(PROJECT_PATH, output_dir, module_name,
-                                 use_semantics=False, iterations=MAX_ITERATIONS)
+                                 use_semantics=False, iterations=MAX_ITERATIONS, verbose=VERBOSE)
             execution_time = time.time() - start_time
 
             if result is None:
@@ -168,7 +183,7 @@ def main():
 
             start_time = time.time()
             result = run_pynguin(PROJECT_PATH, output_dir, module_name,
-                                 use_semantics=True, iterations=MAX_ITERATIONS)
+                                 use_semantics=True, iterations=MAX_ITERATIONS, verbose=VERBOSE)
             execution_time = time.time() - start_time
 
             if result is None:
