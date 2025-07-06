@@ -12,7 +12,7 @@ import logging
 if TYPE_CHECKING:
     from pynguin.testcase.testcase import TestCase
 
-_LOG = logging.getLogger(__name__)    
+_LOG = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------- #
 class DocstringPenaltyFitness(ff.TestCaseFitnessFunction):
@@ -29,7 +29,13 @@ class DocstringPenaltyFitness(ff.TestCaseFitnessFunction):
     def compute_fitness(self, suite: tsc.TestCaseChromosome) -> float:  # noqa: D401
         any_violation = False
 
-        for case_chromo in suite.test_case_chromosomes:
+        # Handle both suite and single test case chromosome
+        if hasattr(suite, "test_case_chromosomes"):
+            chromosomes = suite.test_case_chromosomes
+        else:
+            chromosomes = [suite]
+
+        for case_chromo in chromosomes:
             violations = self._violations(case_chromo.test_case)
             if violations > 0:
                 any_violation = True
@@ -37,10 +43,10 @@ class DocstringPenaltyFitness(ff.TestCaseFitnessFunction):
                     "[Penalty] %s -> %d violations -> penalty=%s",
                     case_chromo.test_case.get_name(),
                     violations,
-                    "inf" ,
+                    "inf",
                 )
-                case_chromo.set_fitness(self.identifier, inf)
-        return inf if any_violation else 0.0            
+                case_chromo.set_fitness(self.identifier, float("inf"))
+        return float("inf") if any_violation else 0.0
 
     # -------- helper -------------------------------------------------------- #
     @staticmethod
