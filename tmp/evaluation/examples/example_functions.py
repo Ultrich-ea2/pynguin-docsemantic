@@ -9,6 +9,10 @@ def collection_constraints(numbers: list) -> float:
 
     Returns:
         float: The average of the numbers in the list.
+
+    Example:
+        >>> collection_constraints([1, 2, 3, 4])
+        2.5
     """
     if not numbers:
         raise ValueError("List cannot be empty")
@@ -27,6 +31,12 @@ def numeric_range_example(value: int) -> bool:
 
     Returns:
         bool: True if the value is within range, False otherwise.
+
+    Example:
+        >>> numeric_range_example(50)
+        True
+        >>> numeric_range_example(150)
+        False
     """
     return 1 <= value <= 100
 
@@ -42,6 +52,12 @@ def string_pattern_function(file_path: str) -> str:
 
     Returns:
         str: The contents of the file or an error message.
+
+    Example:
+        >>> string_pattern_function("example.txt")
+        'Contents of example.txt'
+        >>> string_pattern_function("invalid.pdf")
+        'Error: File must be a text file'
     """
     if not file_path.endswith('.txt'):
         return "Error: File must be a text file"
@@ -65,6 +81,12 @@ def combined_constraints(name: str, age: int, is_student: bool) -> str:
 
     Returns:
         str: A personalized greeting.
+
+    Example:
+        >>> combined_constraints("Alice", 25, True)
+        'Hello, Student Alice! You are 25 years old.'
+        >>> combined_constraints("", 25, True)
+        'Invalid name'
     """
     if not name or not name.isalpha():
         return "Invalid name"
@@ -85,6 +107,12 @@ def value_set_constraint(day: str) -> int:
 
     Returns:
         int: The day number (1-7) or -1 if invalid.
+
+    Example:
+        >>> value_set_constraint("Monday")
+        1
+        >>> value_set_constraint("Funday")
+        -1
     """
     days = {
         'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4,
@@ -107,6 +135,14 @@ def validate_triangle(x: int, y: int, z: int) -> str:
 
     Returns:
         str: A string describing the triangle type or "Invalid triangle" if impossible.
+
+    Example:
+        >>> validate_triangle(3, 4, 5)
+        'Scalene triangle'
+        >>> validate_triangle(1, 1, 1)
+        'Equilateral triangle'
+        >>> validate_triangle(1, 2, 3)
+        'Invalid triangle'
     """
     if x <= 0 or y <= 0 or z <= 0 or (x + y <= z) or (x + z <= y) or (y + z <= x):
         return "Invalid triangle"
