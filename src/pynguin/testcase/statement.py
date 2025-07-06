@@ -1249,6 +1249,8 @@ class ParametrizedStatement(VariableCreatingStatement, abc.ABC):
         Returns:
             A dictionary of key-value argument references
         """
+        if isinstance(self._args, list):
+            return {f"arg{idx}": var.clone(memo) for idx, var in enumerate(self._args)}
         return {name: var.clone(memo) for name, var in self._args.items()}
 
     def mutate(self) -> bool:  # noqa: D102
