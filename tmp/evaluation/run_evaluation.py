@@ -1,14 +1,26 @@
 import subprocess
 import os
+import sys
 import pandas as pd
 import time
 from datetime import datetime
 import argparse
 from pathlib import Path
-import sys
+import logging
 
-def run_pynguin(project_path, output_path, module_name, use_semantics=False, iterations=100, verbose=False):
+from pynguin.configuration import CoverageMetric
+
+
+def run_pynguin(project_path, output_path, module_name, run_iteration, use_semantics=False, iterations=100, verbose=True):
     """Run Pynguin with the specified parameters."""
+    # Configure logging
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format='%(name)s - %(levelname)s - %(message)s',
+    )
+    logger = logging.getLogger("pynguin")
+    logger.setLevel(logger.DEBUG if verbose else logging.INFO)
+
     # Create a specific report directory within the output path
     report_dir = os.path.join(output_path, "pynguin-report")
     os.makedirs(report_dir, exist_ok=True)
@@ -29,7 +41,7 @@ def run_pynguin(project_path, output_path, module_name, use_semantics=False, ite
     )
     import dataclasses
 
-    # Create configuration with proper nested configuration objects
+    # Create configuration
     config = Configuration(
         project_path=project_path,
         module_name=module_name,
@@ -39,19 +51,20 @@ def run_pynguin(project_path, output_path, module_name, use_semantics=False, ite
         ),
         statistics_output=StatisticsOutputConfiguration(
             report_dir=report_dir,
-            statistics_backend="CSV"
+            statistics_backend="CSV",
+            coverage_metrics=[CoverageMetric("BRANCH")], #, CoverageMetric("LINE")
         ),
         stopping=StoppingConfiguration(
             maximum_iterations=iterations,
-            maximum_search_time=600
+            maximum_search_time=600 # 10 minutes
         ),
         search_algorithm=SearchAlgorithmConfiguration(
             population=50
         ),
         seeding=SeedingConfiguration(
-            seed=42
+            seed=run_iteration
         ),
-        algorithm=Algorithm.MOSA
+        algorithm=Algorithm.DYNAMOSA,
     )
 
     if use_semantics:
@@ -122,9 +135,9 @@ def main():
         print("Error: pynguin module not found. Make sure it's installed.")
         sys.exit(1)
 
-    # Create timestamp for the experiment
+    # Create timestamp for the evaluation output directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    OUTPUT_BASE_PATH = f"pynguin_experiment_{timestamp}"
+    OUTPUT_BASE_PATH = f"pynguin_evaluation_{timestamp}"
     os.makedirs(OUTPUT_BASE_PATH, exist_ok=True)
 
     # Find all Python files in the project directory
@@ -145,114 +158,125 @@ def main():
     for module_name in example_modules:
         print(f"\n--- Testing module: {module_name} ---")
 
-        # Run without semantics
-        for run in range(1, NUM_RUNS + 1):
-            print(f"Standard run {run}/{NUM_RUNS}")
-            output_dir = os.path.join(OUTPUT_BASE_PATH, f"{module_name}_standard_run{run}")
-            os.makedirs(output_dir, exist_ok=True)
+        run_without_semantics(MAX_ITERATIONS, NUM_RUNS, OUTPUT_BASE_PATH, PROJECT_PATH, VERBOSE, all_results,
+                              module_name)
 
-            start_time = time.time()
-            result = run_pynguin(PROJECT_PATH, output_dir, module_name,
-                                 use_semantics=False, iterations=MAX_ITERATIONS, verbose=VERBOSE)
-            execution_time = time.time() - start_time
-
-            if result is None:
-                print(f"  Failed to run pynguin for {module_name} (standard)")
-                continue
-
-            # Collect coverage data
-            stats_file = os.path.join(output_dir, "pynguin-report", "statistics.csv")
-            coverage_data = extract_coverage_data(stats_file)
-
-            if coverage_data:
-                coverage_data.update({
-                    'module': module_name,
-                    'run': run,
-                    'semantics': False,
-                    'execution_time': execution_time
-                })
-                all_results.append(coverage_data)
-            else:
-                print(f"  No coverage data collected for {module_name} (standard, run {run})")
-
-        # Run with semantics
-        for run in range(1, NUM_RUNS + 1):
-            print(f"Semantic run {run}/{NUM_RUNS}")
-            output_dir = os.path.join(OUTPUT_BASE_PATH, f"{module_name}_semantic_run{run}")
-            os.makedirs(output_dir, exist_ok=True)
-
-            start_time = time.time()
-            result = run_pynguin(PROJECT_PATH, output_dir, module_name,
-                                 use_semantics=True, iterations=MAX_ITERATIONS, verbose=VERBOSE)
-            execution_time = time.time() - start_time
-
-            if result is None:
-                print(f"  Failed to run pynguin for {module_name} (semantic)")
-                continue
-
-            # Collect coverage data
-            stats_file = os.path.join(output_dir, "pynguin-report", "statistics.csv")
-            coverage_data = extract_coverage_data(stats_file)
-
-            if coverage_data:
-                coverage_data.update({
-                    'module': module_name,
-                    'run': run,
-                    'semantics': True,
-                    'execution_time': execution_time
-                })
-                all_results.append(coverage_data)
-            else:
-                print(f"  No coverage data collected for {module_name} (semantic, run {run})")
+        run_with_semantics(MAX_ITERATIONS, NUM_RUNS, OUTPUT_BASE_PATH, PROJECT_PATH, VERBOSE, all_results, module_name)
 
     # Save all results to a CSV file
     if all_results:
-        results_df = pd.DataFrame(all_results)
-        results_file = os.path.join(OUTPUT_BASE_PATH, "coverage_comparison.csv")
-        results_df.to_csv(results_file, index=False)
-        print(f"\nResults saved to {results_file}")
-
-        # Generate summary statistics
-        summary_file = os.path.join(OUTPUT_BASE_PATH, "summary.txt")
-        with open(summary_file, 'w') as f:
-            f.write("EXPERIMENT SUMMARY\n")
-            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"Modules tested: {', '.join(example_modules)}\n")
-            f.write(f"Number of runs: {NUM_RUNS}\n\n")
-
-            for module in results_df['module'].unique():
-                f.write(f"\nModule: {module}\n")
-                f.write("-" * 40 + "\n")
-
-                standard = results_df[(results_df['module'] == module) & (results_df['semantics'] == False)]
-                semantic = results_df[(results_df['module'] == module) & (results_df['semantics'] == True)]
-
-                # Add execution time comparison
-                std_time_avg = standard['execution_time'].mean() if not standard.empty else 0
-                sem_time_avg = semantic['execution_time'].mean() if not semantic.empty else 0
-                time_diff = sem_time_avg - std_time_avg
-                time_percentage = (time_diff / std_time_avg * 100) if std_time_avg > 0 else float('inf')
-
-                f.write(f"execution_time (seconds):\n")
-                f.write(f"  Standard: {std_time_avg:.2f}\n")
-                f.write(f"  Semantic: {sem_time_avg:.2f}\n")
-                f.write(f"  Difference: {time_diff:.2f} ({time_percentage:.2f}%)\n\n")
-
-                coverage_cols = [col for col in results_df.columns if 'coverage' in col]
-                for col in coverage_cols:
-                    std_avg = standard[col].mean() if not standard.empty else 0
-                    sem_avg = semantic[col].mean() if not semantic.empty else 0
-                    improvement = sem_avg - std_avg
-                    rel_imp = (improvement / std_avg * 100) if std_avg > 0 else float('inf')
-
-                    f.write(f"{col}:\n")
-                    f.write(f"  Standard: {std_avg:.4f}\n")
-                    f.write(f"  Semantic: {sem_avg:.4f}\n")
-                    f.write(f"  Improvement: {improvement:.4f} ({rel_imp:.2f}%)\n\n")
-
-        print(f"Summary written to {summary_file}")
+        save_all_results(NUM_RUNS, OUTPUT_BASE_PATH, all_results, example_modules)
     else:
         print("No results were collected!")
+
+
+def save_all_results(NUM_RUNS, OUTPUT_BASE_PATH, all_results, example_modules):
+    results_df = pd.DataFrame(all_results)
+    results_file = os.path.join(OUTPUT_BASE_PATH, "coverage_comparison.csv")
+    results_df.to_csv(results_file, index=False)
+    print(f"\nResults saved to {results_file}")
+
+    # Generate summary statistics
+    summary_file = os.path.join(OUTPUT_BASE_PATH, "summary.txt")
+    with open(summary_file, 'w') as f:
+        f.write("EVALUATION SUMMARY\n")
+        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"Modules tested: {', '.join(example_modules)}\n")
+        f.write(f"Number of runs: {NUM_RUNS}\n\n")
+
+        for module in results_df['module'].unique():
+            f.write(f"\nModule: {module}\n")
+            f.write("-" * 40 + "\n")
+
+            standard = results_df[(results_df['module'] == module) & (results_df['semantics'] == False)]
+            semantic = results_df[(results_df['module'] == module) & (results_df['semantics'] == True)]
+
+            # Add execution time comparison
+            std_time_avg = standard['execution_time'].mean() if not standard.empty else 0
+            sem_time_avg = semantic['execution_time'].mean() if not semantic.empty else 0
+            time_diff = sem_time_avg - std_time_avg
+            time_percentage = (time_diff / std_time_avg * 100) if std_time_avg > 0 else float('inf')
+
+            f.write(f"execution_time (seconds):\n")
+            f.write(f"  Standard: {std_time_avg:.2f}\n")
+            f.write(f"  Semantic: {sem_time_avg:.2f}\n")
+            f.write(f"  Difference: {time_diff:.2f} ({time_percentage:.2f}%)\n\n")
+
+            coverage_cols = [col for col in results_df.columns if 'coverage' in col]
+            for col in coverage_cols:
+                std_avg = standard[col].mean() if not standard.empty else 0
+                sem_avg = semantic[col].mean() if not semantic.empty else 0
+                improvement = sem_avg - std_avg
+                rel_imp = (improvement / std_avg * 100) if std_avg > 0 else float('inf')
+
+                f.write(f"{col}:\n")
+                f.write(f"  Standard: {std_avg:.4f}\n")
+                f.write(f"  Semantic: {sem_avg:.4f}\n")
+                f.write(f"  Improvement: {improvement:.4f} ({rel_imp:.2f}%)\n\n")
+    print(f"Summary written to {summary_file}")
+
+
+def run_with_semantics(MAX_ITERATIONS, NUM_RUNS, OUTPUT_BASE_PATH, PROJECT_PATH, VERBOSE, all_results, module_name):
+    for run in range(1, NUM_RUNS + 1):
+        print(f"Semantic run {run}/{NUM_RUNS}")
+        output_dir = os.path.join(OUTPUT_BASE_PATH, f"{module_name}_semantic_run{run}")
+        os.makedirs(output_dir, exist_ok=True)
+
+        start_time = time.time()
+        result = run_pynguin(PROJECT_PATH, output_dir, module_name, run,
+                             use_semantics=True, iterations=MAX_ITERATIONS, verbose=VERBOSE)
+        execution_time = time.time() - start_time
+
+        if result is None:
+            print(f"  Failed to run pynguin for {module_name} (semantic)")
+            continue
+
+        # Collect coverage data
+        stats_file = os.path.join(output_dir, "pynguin-report", "statistics.csv")
+        coverage_data = extract_coverage_data(stats_file)
+
+        if coverage_data:
+            coverage_data.update({
+                'module': module_name,
+                'run': run,
+                'semantics': True,
+                'execution_time': execution_time
+            })
+            all_results.append(coverage_data)
+        else:
+            print(f"  No coverage data collected for {module_name} (semantic, run {run})")
+
+
+def run_without_semantics(MAX_ITERATIONS, NUM_RUNS, OUTPUT_BASE_PATH, PROJECT_PATH, VERBOSE, all_results, module_name):
+    for run in range(1, NUM_RUNS + 1):
+        print(f"Standard run {run}/{NUM_RUNS}")
+        output_dir = os.path.join(OUTPUT_BASE_PATH, f"{module_name}_standard_run{run}")
+        os.makedirs(output_dir, exist_ok=True)
+
+        start_time = time.time()
+        result = run_pynguin(PROJECT_PATH, output_dir, module_name, run,
+                             use_semantics=False, iterations=MAX_ITERATIONS, verbose=VERBOSE)
+        execution_time = time.time() - start_time
+
+        if result is None:
+            print(f"  Failed to run pynguin for {module_name} (standard)")
+            continue
+
+        # Collect coverage data
+        stats_file = os.path.join(output_dir, "pynguin-report", "statistics.csv")
+        coverage_data = extract_coverage_data(stats_file)
+
+        if coverage_data:
+            coverage_data.update({
+                'module': module_name,
+                'run': run,
+                'semantics': False,
+                'execution_time': execution_time
+            })
+            all_results.append(coverage_data)
+        else:
+            print(f"  No coverage data collected for {module_name} (standard, run {run})")
+
 
 if __name__ == "__main__":
     main()
