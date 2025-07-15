@@ -1,24 +1,24 @@
-# def collection_constraints(numbers: list) -> float:
-#     """
-#     Calculate the average of a list of positive numbers.
-#
-#     Args:
-#         numbers (list): A list of numbers.
-#             Must satisfy: len(numbers) > 0
-#             Must satisfy: all(x > 0 for x in numbers)
-#
-#     Returns:
-#         float: The average of the numbers in the list.
-#
-#     Example:
-#         >>> collection_constraints([1, 2, 3, 4])
-#         2.5
-#     """
-#     if not numbers:
-#         raise ValueError("List cannot be empty")
-#     if any(x <= 0 for x in numbers):
-#         raise ValueError("All numbers must be positive")
-#     return sum(numbers) / len(numbers)
+def collection_constraints(numbers: list) -> float:
+    """
+    Calculate the average of a list of positive numbers.
+
+    Args:
+        numbers (list): A list of numbers.
+            Must satisfy: len(numbers) > 0
+            Must satisfy: all(x > 0 for x in numbers)
+
+    Returns:
+        float: The average of the numbers in the list.
+
+    Example:
+        >>> collection_constraints([1, 2, 3, 4])
+        2.5
+    """
+    if not numbers:
+        raise ValueError("List cannot be empty")
+    if any(x <= 0 for x in numbers):
+        raise ValueError("All numbers must be positive")
+    return sum(numbers) / len(numbers)
 
 
 def numeric_range_example(value: int) -> bool:
@@ -121,34 +121,34 @@ def value_set_constraint(day: str) -> int:
     return days.get(day, -1)
 
 
-# def validate_triangle(x: int, y: int, z: int) -> str:
-#     """
-#     Determine if the given sides can form a valid triangle and its type.
-#
-#     Args:
-#         x (int): First side length.
-#             Must satisfy: x > 0
-#         y (int): Second side length.
-#             Must satisfy: y > 0
-#         z (int): Third side length.
-#             Must satisfy: z > 0
-#
-#     Returns:
-#         str: A string describing the triangle type or "Invalid triangle" if impossible.
-#
-#     Example:
-#         >>> validate_triangle(3, 4, 5)
-#         'Scalene triangle'
-#         >>> validate_triangle(1, 1, 1)
-#         'Equilateral triangle'
-#         >>> validate_triangle(1, 2, 3)
-#         'Invalid triangle'
-#     """
-#     if x <= 0 or y <= 0 or z <= 0 or (x + y <= z) or (x + z <= y) or (y + z <= x):
-#         return "Invalid triangle"
-#
-#     if x == y == z:
-#         return "Equilateral triangle"
-#     if x == y or y == z or x == z:
-#         return "Isosceles triangle"
-#     return "Scalene triangle"
+def validate_triangle(x: int, y: int, z: int) -> str:
+    """
+    Determine if the given sides can form a valid triangle and its type.
+
+    Args:
+        x (int): First side length.
+            Must satisfy: x > 0
+        y (int): Second side length.
+            Must satisfy: y > 0
+        z (int): Third side length.
+            Must satisfy: z > 0
+
+    Returns:
+        str: A string describing the triangle type or "Invalid triangle" if impossible.
+
+    Example:
+        >>> validate_triangle(3, 4, 5)
+        'Scalene triangle'
+        >>> validate_triangle(1, 1, 1)
+        'Equilateral triangle'
+        >>> validate_triangle(1, 2, 3)
+        'Invalid triangle'
+    """
+    if x <= 0 or y <= 0 or z <= 0 or (x + y <= z) or (x + z <= y) or (y + z <= x):
+        return "Invalid triangle"
+
+    if x == y == z:
+        return "Equilateral triangle"
+    if x == y or y == z or x == z:
+        return "Isosceles triangle"
+    return "Scalene triangle"
