@@ -121,34 +121,34 @@ def value_set_constraint(day: str) -> int:
     return days.get(day, -1)
 
 
-def validate_triangle(x: int, y: int, z: int) -> str:
-    """
-    Determine if the given sides can form a valid triangle and its type.
-
-    Args:
-        x (int): First side length.
-            Must satisfy: x > 0
-        y (int): Second side length.
-            Must satisfy: y > 0
-        z (int): Third side length.
-            Must satisfy: z > 0
-
-    Returns:
-        str: A string describing the triangle type or "Invalid triangle" if impossible.
-
-    Example:
-        >>> validate_triangle(3, 4, 5)
-        'Scalene triangle'
-        >>> validate_triangle(1, 1, 1)
-        'Equilateral triangle'
-        >>> validate_triangle(1, 2, 3)
-        'Invalid triangle'
-    """
-    if x <= 0 or y <= 0 or z <= 0 or (x + y <= z) or (x + z <= y) or (y + z <= x):
-        return "Invalid triangle"
-
-    if x == y == z:
-        return "Equilateral triangle"
-    if x == y or y == z or x == z:
-        return "Isosceles triangle"
-    return "Scalene triangle"
+# def validate_triangle(x: int, y: int, z: int) -> str:
+#     """
+#     Determine if the given sides can form a valid triangle and its type.
+#
+#     Args:
+#         x (int): First side length.
+#             Must satisfy: x > 0
+#         y (int): Second side length.
+#             Must satisfy: y > 0
+#         z (int): Third side length.
+#             Must satisfy: z > 0
+#
+#     Returns:
+#         str: A string describing the triangle type or "Invalid triangle" if impossible.
+#
+#     Example:
+#         >>> validate_triangle(3, 4, 5)
+#         'Scalene triangle'
+#         >>> validate_triangle(1, 1, 1)
+#         'Equilateral triangle'
+#         >>> validate_triangle(1, 2, 3)
+#         'Invalid triangle'
+#     """
+#     if x <= 0 or y <= 0 or z <= 0 or (x + y <= z) or (x + z <= y) or (y + z <= x):
+#         return "Invalid triangle"
+#
+#     if x == y == z:
+#         return "Equilateral triangle"
+#     if x == y or y == z or x == z:
+#         return "Isosceles triangle"
+#     return "Scalene triangle"

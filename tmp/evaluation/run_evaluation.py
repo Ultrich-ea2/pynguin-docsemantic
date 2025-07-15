@@ -7,19 +7,101 @@ from datetime import datetime
 import argparse
 from pathlib import Path
 import logging
+import hashlib
+import importlib.util
 
 from pynguin.configuration import CoverageMetric
+
+
+def find_python_modules(project_path, exclude_patterns=None):
+    """Find all Python modules in a project, excluding test files and __pycache__."""
+    if exclude_patterns is None:
+        exclude_patterns = ['test_', '_test', '__pycache__', '.git', '.pytest_cache', 'build', 'dist']
+
+    modules = []
+    project_dir = Path(project_path)
+
+    # First, find all __init__.py files to identify package structure
+    packages = set()
+    for init_file in project_dir.rglob("__init__.py"):
+        relative_path = init_file.relative_to(project_dir)
+        package_parts = list(relative_path.parts[:-1])  # Remove __init__.py
+        if package_parts:  # Only if not in root
+            package_name = '.'.join(package_parts)
+            packages.add(package_name)
+
+    for py_file in project_dir.rglob("*.py"):
+        # Skip files that match exclude patterns
+        if any(pattern in str(py_file) for pattern in exclude_patterns):
+            continue
+
+        # Skip __init__.py files - they define packages, not modules
+        if py_file.name == '__init__.py':
+            continue
+
+        # Convert file path to module name
+        relative_path = py_file.relative_to(project_dir)
+        module_parts = list(relative_path.parts[:-1]) + [relative_path.stem]
+
+        # Check if this file is part of a valid package structure
+        if len(module_parts) > 1:
+            # For nested modules, check if parent directories have __init__.py
+            parent_package = '.'.join(module_parts[:-1])
+            if parent_package not in packages:
+                # Skip modules that aren't in proper packages
+                continue
+
+        module_name = '.'.join(module_parts)
+
+        # Skip modules with empty parts (can happen with malformed paths)
+        if any(not part for part in module_parts):
+            continue
+
+        modules.append(module_name)
+
+    return sorted(modules)
+
+
+def is_module_importable(project_path, module_name):
+    """Check if a module can be imported without errors."""
+    original_path = sys.path.copy()
+    try:
+        # Add project path to Python path
+        if project_path not in sys.path:
+            sys.path.insert(0, project_path)
+
+        # Try to import the module
+        module = importlib.import_module(module_name)
+
+        # Additional validation: check if module has analyzable content
+        if hasattr(module, '__file__') and module.__file__:
+            # Only consider modules with actual Python source files
+            if module.__file__.endswith(('.py', '.pyw')):
+                return True
+            else:
+                print(f"  Module {module_name} is not a pure Python module: {module.__file__}")
+                return False
+        else:
+            print(f"  Module {module_name} has no source file (built-in or C extension)")
+            return False
+
+    except Exception as e:
+        print(f"  Module {module_name} not importable: {e}")
+        return False
+    finally:
+        sys.path = original_path
 
 
 def run_pynguin(project_path, output_path, module_name, run_iteration, use_semantics=False, iterations=100, verbose=True):
     """Run Pynguin with the specified parameters."""
     # Configure logging
-    logging.basicConfig(
-        level=logging.DEBUG if verbose else logging.INFO,
-        format='%(name)s - %(levelname)s - %(message)s',
-    )
-    logger = logging.getLogger("pynguin")
-    logger.setLevel(logger.DEBUG if verbose else logging.INFO)
+    if verbose:
+        logging.basicConfig(
+            level=logging.DEBUG if verbose else logging.INFO,
+            format='%(name)s - %(levelname)s - %(message)s',
+        )
+        logger = logging.getLogger("pynguin")
+        logger.setLevel(logger.DEBUG if verbose else logging.INFO)
 
     # Create a specific report directory within the output path
     report_dir = os.path.join(output_path, "pynguin-report")
@@ -41,6 +123,9 @@ def run_pynguin(project_path, output_path, module_name, run_iteration, use_seman
     )
     import dataclasses
 
+    # Ensure project path is absolute
+    abs_project_path = os.path.abspath(project_path)
+
     # Create configuration
     config = Configuration(
         project_path=project_path,
@@ -61,10 +146,11 @@ def run_pynguin(project_path, output_path, module_name, run_iteration, use_seman
         search_algorithm=SearchAlgorithmConfiguration(
             population=50
         ),
-        seeding=SeedingConfiguration(
-            seed=run_iteration
+        seeding = SeedingConfiguration(
+            seed=int.from_bytes(hashlib.sha256(str(run_iteration).encode()).digest()[:4], 'big')
         ),
         algorithm=Algorithm.DYNAMOSA,
+        # algorithm=Algorithm.MIO,
     )
 
     if use_semantics:
@@ -73,7 +159,6 @@ def run_pynguin(project_path, output_path, module_name, run_iteration, use_seman
 
     if verbose:
         # Set up verbose logging in Pynguin
-        os.environ["PYNGUIN_LOG_LEVEL"] = "DEBUG"
         print(f"  Running in verbose mode with configuration:")
         for field in dataclasses.fields(config):
             field_name = field.name
@@ -87,8 +172,14 @@ def run_pynguin(project_path, output_path, module_name, run_iteration, use_seman
         set_configuration(config)
         result = execute_pynguin()
         return result
+    except AttributeError as e:
+        if "'wrapper_descriptor' object has no attribute '__module__'" in str(e):
+            print(f"  Skipping {module_name}: Contains non-introspectable objects (C extensions/built-ins)")
+        else:
+            print(f"  AttributeError in pynguin for {module_name}: {e}")
+        return None
     except Exception as e:
-        print(f"  Exception running pynguin: {e}")
+        print(f"  Exception running pynguin on {module_name}: {type(e).__name__}: {e}")
         return None
 
 def extract_coverage_data(stats_file):
@@ -110,9 +201,12 @@ def extract_coverage_data(stats_file):
 
 def main():
     parser = argparse.ArgumentParser(description="Run Pynguin with and without semantics")
-    parser.add_argument("--runs", type=int, default=2, help="Number of runs for each configuration")
-    parser.add_argument("--iterations", type=int, default=200, help="Maximum iterations for Pynguin")
+    parser.add_argument("--runs", type=int, default=3, help="Number of runs for each configuration")
+    parser.add_argument("--iterations", type=int, default=250, help="Maximum iterations for Pynguin")
     parser.add_argument("--project-path", type=str, default="tmp/evaluation/examples", help="Path to project")
+    parser.add_argument("--max-modules", type=int, default=None, help="Maximum number of modules to test")
+    parser.add_argument("--exclude", nargs='+', default=['test_', '_test', '__pycache__', '.git'],
+                        help="Patterns to exclude from module discovery")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
     args = parser.parse_args()
 
@@ -120,6 +214,7 @@ def main():
     PROJECT_PATH = args.project_path
     MAX_ITERATIONS = args.iterations
     VERBOSE = args.verbose
+    MAX_MODULES = args.max_modules
 
     print("Note: This script sets PYNGUIN_DANGER_AWARE=1 to allow Pynguin to run.")
     print("      See https://pynguin.readthedocs.io/en/latest/user/quickstart.html for details.")
@@ -140,15 +235,29 @@ def main():
     OUTPUT_BASE_PATH = f"pynguin_evaluation_{timestamp}"
     os.makedirs(OUTPUT_BASE_PATH, exist_ok=True)
 
-    # Find all Python files in the project directory
-    project_dir = Path(PROJECT_PATH)
-    example_modules = [
-        os.path.splitext(f.name)[0]
-        for f in project_dir.glob("*.py")
-        if f.is_file()
-    ]
+    # Find all Python modules in the repository
+    print(f"Discovering modules in {PROJECT_PATH}...")
+    all_modules = find_python_modules(PROJECT_PATH, args.exclude)
+    print(f"Found {len(all_modules)} potential modules")
 
-    print(f"Found {len(example_modules)} modules: {example_modules}")
+    # Filter to only importable modules
+    print("Checking module importability...")
+    example_modules = []
+    for module in all_modules:
+        if is_module_importable(PROJECT_PATH, module):
+            example_modules.append(module)
+            if MAX_MODULES and len(example_modules) >= MAX_MODULES:
+                break
+
+    print(f"Found {len(example_modules)} importable modules")
+    if VERBOSE:
+        for module in example_modules:
+            print(f"  - {module}")
+
+    if not example_modules:
+        print("No importable modules found!")
+        sys.exit(1)
+
     print(f"Running {NUM_RUNS} times for each module with and without semantics")
     print(f"Output will be saved to: {OUTPUT_BASE_PATH}")
 
