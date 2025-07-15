@@ -9,7 +9,7 @@ from pathlib import Path
 import logging
 import hashlib
 
-from pynguin.configuration import CoverageMetric
+from pynguin.configuration import CoverageMetric, Minimization, MinimizationStrategy
 
 
 def run_pynguin(project_path, output_path, module_name, run_iteration, use_semantics=False, iterations=100, verbose=False):
@@ -18,11 +18,11 @@ def run_pynguin(project_path, output_path, module_name, run_iteration, use_seman
 
     if verbose:
         logging.basicConfig(
-            level=logging.DEBUG if verbose else logging.INFO,
+            level=logging.INFO if verbose else logging.INFO,
             format='%(name)s - %(levelname)s - %(message)s',
         )
         logger = logging.getLogger("pynguin")
-        logger.setLevel(logger.DEBUG if verbose else logging.INFO)
+        logger.setLevel(logging.INFO if verbose else logging.INFO)
 
     # Create a specific report directory within the output path
     report_dir = os.path.join(output_path, "pynguin-report")
@@ -50,7 +50,10 @@ def run_pynguin(project_path, output_path, module_name, run_iteration, use_seman
         module_name=module_name,
         test_case_output=TestCaseOutputConfiguration(
             output_path=output_path,
-            assertion_generation="MUTATION_ANALYSIS"
+            assertion_generation="MUTATION_ANALYSIS",
+            minimization=Minimization(
+                test_case_minimization_strategy=MinimizationStrategy.NONE
+            )
         ),
         statistics_output=StatisticsOutputConfiguration(
             report_dir=report_dir,
@@ -59,7 +62,7 @@ def run_pynguin(project_path, output_path, module_name, run_iteration, use_seman
         ),
         stopping=StoppingConfiguration(
             maximum_iterations=iterations,
-            maximum_search_time=600 # 10 minutes
+            maximum_search_time=300 # 5 minutes
         ),
         search_algorithm=SearchAlgorithmConfiguration(
             population=50
