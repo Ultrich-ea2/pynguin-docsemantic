@@ -4,7 +4,7 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from .config import ExperimentConfig, RunResults, PynguinRunConfig
+from .config import ExperimentConfig, PynguinRunConfig
 from .runner import PynguinRunner
 from .analysis import AnalysisPlots, run_statistical_analysis
 

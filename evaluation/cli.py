@@ -11,7 +11,7 @@ def main():
     parser = argparse.ArgumentParser(description="Scientific evaluation of Pynguin with/without semantics")
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--iterations", type=int, default=20)
-    parser.add_argument("--max-search-time", type=int, default=10)
+    parser.add_argument("--max-search-time", type=int, default=300)
     parser.add_argument("--max-memory", type=int, default=5000)
     parser.add_argument("--population-size", type=int, default=50)
     parser.add_argument("--project-path", type=str, default="tmp/evaluation/examples")

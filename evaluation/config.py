@@ -10,14 +10,14 @@ class ExperimentConfig:
     modules: List[str]
     num_runs: int = 5
     max_iterations: int = 20
-    max_search_time: int = 10
+    max_search_time: int = 300
     max_memory: int = 5000
     population_size: int = 50
     verbose: bool = False
 
 @dataclass
 class PynguinRunConfig:
-    timeline_interval: int = 500_000_000 # nanoseconds
+    timeline_interval: int = 100_000_000 # nanoseconds
 
 @dataclass
 class RunResults:
