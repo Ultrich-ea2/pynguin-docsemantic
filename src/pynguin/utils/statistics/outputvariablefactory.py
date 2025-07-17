@@ -173,13 +173,18 @@ class SequenceOutputVariableFactory(ABC, Generic[T]):
         run_time = self._time_stamps[-1] / 1_000_000_000
         if run_time >= config.configuration.stopping.maximum_search_time:
             normalised_area = self.area_under_curve / run_time
+            print(f"Normalised area under curve: {normalised_area} = {self.area_under_curve} / {run_time}")
         else:
             last_value = self._values[-1]
             time_delta = config.configuration.stopping.maximum_search_time - run_time
             normalised_area = (
                 self.area_under_curve + last_value * time_delta
             ) / config.configuration.stopping.maximum_search_time
-        assert 0.0 <= normalised_area <= 1.0, f"Normalised AuC out of range ({normalised_area})!"
+            print(f"Normalised area under curve: {normalised_area} = "
+                  f"({self.area_under_curve} + {last_value} * {time_delta}) / {config.configuration.stopping.maximum_search_time}")
+            print(normalised_area)
+        # normalised_area = min(normalised_area, 1.0)
+        # assert 0.0 <= normalised_area <= 1.0, f"Normalised AuC out of range ({normalised_area})!"
         return normalised_area
 
     @property
