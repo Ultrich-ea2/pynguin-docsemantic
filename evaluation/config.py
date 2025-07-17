@@ -17,7 +17,7 @@ class ExperimentConfig:
 
 @dataclass
 class PynguinRunConfig:
-    timeline_interval: int = 100_000_000 # nanoseconds
+    timeline_interval: int = 200_000_000 # nanoseconds
 
 @dataclass
 class RunResults:

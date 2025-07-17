@@ -33,7 +33,6 @@ class PynguinRunner:
             module_name=module_name,
             test_case_output=TestCaseOutputConfiguration(
                 output_path=run_dir,
-                # assertion_generation="MUTATION_ANALYSIS",
                 assertion_generation="CHECKED_MINIMIZING",
                 minimization=Minimization(
                     test_case_minimization_strategy=MinimizationStrategy.NONE

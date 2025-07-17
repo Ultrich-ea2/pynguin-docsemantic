@@ -143,24 +143,18 @@ def _plot_module_timelines(module_data, module_name, vis_dir, pynguin_config):
         colors = ['#2E86AB', '#A23B72']
         linestyles = ['-', '--']
         alphas = [0.8, 0.8]
+        fill_alphas = [0.15, 0.15]
 
-        for i, (semantics, color, linestyle, alpha) in enumerate(
-            zip([False, True], colors, linestyles, alphas)):
+        for i, (semantics, color, linestyle, alpha, fill_alpha) in enumerate(
+            zip([False, True], colors, linestyles, alphas, fill_alphas)):
             subset = module_data[module_data['semantics'] == semantics]
             if subset.empty:
                 continue
 
+            # Process data in smaller chunks to reduce memory usage
             vals = subset[cols].to_numpy(dtype=float)
             means = np.nanmean(vals, axis=0)
             stds = np.nanstd(vals, axis=0)
-
-            # Calculate sample size for each time point
-            n_samples = np.sum(~np.isnan(vals), axis=0)
-            max_samples = np.max(n_samples)
-
-            # Dynamic transparency based on data density
-            # More data = less transparency for fill
-            fill_alphas = 0.05 + (n_samples / max_samples) * 0.25  # Range: 0.05 to 0.3
 
             label = f"{'Semantic' if semantics else 'Standard'} (n={len(subset)})"
 
@@ -168,16 +162,12 @@ def _plot_module_timelines(module_data, module_name, vis_dir, pynguin_config):
             ax.plot(x, means, label=label, color=color, linewidth=2.5,
                     linestyle=linestyle, alpha=alpha, zorder=3 - i)
 
-            # Add fill with dynamic transparency
-            for j in range(len(x) - 1):
-                ax.fill_between(x[j:j + 2],
-                                (means - stds)[j:j + 2],
-                                (means + stds)[j:j + 2],
-                                alpha=fill_alphas[j],
-                                color=color, zorder=1 - i)
+            # Add fill with lower transparency
+            ax.fill_between(x, means - stds, means + stds, alpha=fill_alpha,
+                            color=color, zorder=1 - i)
 
             # Clean up arrays immediately
-            del vals, means, stds, n_samples, fill_alphas
+            del vals, means, stds
 
         ax.set_xlabel('Time (seconds)')
         ax.set_ylabel(metric_name)
