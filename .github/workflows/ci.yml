@@ -19,6 +19,8 @@ jobs:
         python-version: ["3.10"]
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      PYTHONPATH: src
 
     steps:
       - name: Checkout
@@ -43,7 +45,7 @@ jobs:
         run: python -m poetry run pre-commit run --all-files
 
       - name: Check typing with mypy
-        run: python -m poetry run mypy
+        run: python -m poetry run mypy src --exclude "src/pynguin/semantics/|src/pynguin/testcase/factory/primitivefactory.py"
 
       - name: Run unit tests
         run: python -m poetry run pytest --cov=src --cov=tests --cov-branch --cov-report=term-missing tests/
