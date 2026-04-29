@@ -1,27 +1,39 @@
-# SPDX-FileCopyrightText: 2019–2025 Pynguin Contributors
+# SPDX-FileCopyrightText: 2019–2026 Pynguin Contributors
 #
 # SPDX-License-Identifier: MIT
 
 name: CI
-on: [push, pull_request]
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  ci:
+  quality-and-tests:
+    name: ${{ matrix.os }} / py${{ matrix.python-version }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10']
-        poetry-version: [2.0.1]
+        python-version: ["3.10"]
+        poetry-version: ["2.0.1"]
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: poetry
 
       - name: Setup Poetry
         uses: abatilo/actions-poetry@v4
@@ -29,13 +41,16 @@ jobs:
           poetry-version: ${{ matrix.poetry-version }}
 
       - name: Install dependencies
-        run: poetry install --with openai,numpy
+        run: poetry install --with dev,test,openai,numpy
 
-      - name: Run the hooks from pre-commit
+      - name: Validate project metadata
+        run: poetry check
+
+      - name: Run pre-commit hooks
         run: poetry run pre-commit run --all-files
 
       - name: Check typing with mypy
         run: poetry run mypy
 
-      - name: Run tests
+      - name: Run unit tests
         run: poetry run pytest --cov=src --cov=tests --cov-branch --cov-report=term-missing tests/
