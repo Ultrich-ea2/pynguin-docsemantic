@@ -25,12 +25,12 @@ jobs:
         run: python -m pip install --upgrade pip poetry==2.0.1
 
       - name: Verify Poetry installation
-        run: poetry --version
+        run: python -m poetry --version
 
       - name: Setup a local virtual environment
         run: |
-          poetry config virtualenvs.create true --local
-          poetry config virtualenvs.in-project true --local
+          python -m poetry config virtualenvs.create true --local
+          python -m poetry config virtualenvs.in-project true --local
 
       - uses: actions/cache@v4
         name: Cache project virtual environment
@@ -39,10 +39,10 @@ jobs:
           key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
 
       - name: Install the project dependencies
-        run: poetry install --with openai,numpy
+        run: python -m poetry install --with openai,numpy
 
       - name: Build a binary wheel and a source tarball
-        run: poetry build
+        run: python -m poetry build
 
       - name: Store the distribution packages
         uses: actions/upload-artifact@v4

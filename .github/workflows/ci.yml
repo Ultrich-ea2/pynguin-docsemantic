@@ -34,16 +34,16 @@ jobs:
         run: python -m pip install --upgrade pip poetry==2.0.1
 
       - name: Verify Poetry installation
-        run: poetry --version
+        run: python -m poetry --version
 
       - name: Install dependencies
-        run: poetry install --with openai,numpy
+        run: python -m poetry install --with openai,numpy
 
       - name: Run pre-commit hooks
-        run: poetry run pre-commit run --all-files
+        run: python -m poetry run pre-commit run --all-files
 
       - name: Check typing with mypy
-        run: poetry run mypy
+        run: python -m poetry run mypy
 
       - name: Run unit tests
-        run: poetry run pytest --cov=src --cov=tests --cov-branch --cov-report=term-missing tests/
+        run: python -m poetry run pytest --cov=src --cov=tests --cov-branch --cov-report=term-missing tests/
