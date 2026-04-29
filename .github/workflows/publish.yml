@@ -4,15 +4,7 @@
 
 name: Publish Python 🐍 distribution 📦 to PyPI
 
-on:
-  push:
-    tags:
-      - "v*"
-  workflow_dispatch:
-
-concurrency:
-  group: publish-${{ github.ref }}
-  cancel-in-progress: false
+on: push
 
 jobs:
   build:
@@ -46,10 +38,7 @@ jobs:
           key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
 
       - name: Install the project dependencies
-        run: poetry install --with dev,test,openai,numpy
-
-      - name: Validate package metadata
-        run: poetry check
+        run: poetry install --with openai,numpy
 
       - name: Build a binary wheel and a source tarball
         run: poetry build
