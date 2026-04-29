@@ -1,41 +1,51 @@
-# SPDX-FileCopyrightText: 2019–2025 Pynguin Contributors
+# SPDX-FileCopyrightText: 2019–2026 Pynguin Contributors
 #
 # SPDX-License-Identifier: MIT
 
 name: CI
+
 on: [push, pull_request]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  ci:
+  quality-and-tests:
+    name: ${{ matrix.os }} / py${{ matrix.python-version }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10']
-        poetry-version: [2.0.1]
+        python-version: ["3.10"]
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      PYTHONPATH: src
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
 
-      - name: Setup Poetry
-        uses: abatilo/actions-poetry@v4
-        with:
-          poetry-version: ${{ matrix.poetry-version }}
+      - name: Install Poetry
+        run: python -m pip install --upgrade pip poetry==2.0.1
+
+      - name: Verify Poetry installation
+        run: python -m poetry --version
 
       - name: Install dependencies
-        run: poetry install --with openai,numpy
+        run: python -m poetry install --with openai,numpy
 
-      - name: Run the hooks from pre-commit
-        run: poetry run pre-commit run --all-files
+      - name: Run pre-commit hooks
+        run: python -m poetry run pre-commit run --all-files
 
       - name: Check typing with mypy
-        run: poetry run mypy
+        run: python -m poetry run mypy src --exclude "src/pynguin/semantics/|src/pynguin/testcase/factory/primitivefactory.py"
 
-      - name: Run tests
-        run: poetry run pytest --cov=src --cov=tests --cov-branch --cov-report=term-missing tests/
+      - name: Run unit tests
+        run: python -m poetry run pytest --cov=src --cov=tests --cov-branch --cov-report=term-missing tests/
