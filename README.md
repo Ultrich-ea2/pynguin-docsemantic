@@ -1,169 +1,109 @@
 <!--
-SPDX-FileCopyrightText: 2019–2025 Pynguin Contributors
+SPDX-FileCopyrightText: 2019–2026 Pynguin Contributors
 
 SPDX-License-Identifier: CC-BY-4.0
 -->
 
-# Pynguin
+# Pynguin Semantic Extension
 
-Pynguin (IPA: ˈpɪŋɡuiːn),
-the
-PYthoN
-General
-UnIt
-test
-geNerator,
-is a tool that allows developers to generate unit tests automatically.
+Pynguin Semantic Extension adds document aware guidance to Pynguin test generation.
+It reads natural language constraints from Python docstrings and converts them into useful signals for search based test generation.
+The extension is designed for stable behavior, clear configuration, and repeatable results.
 
-Testing software is often considered to be a tedious task.
-Thus, automated generation techniques have been proposed and mature tools exist—for
-statically typed languages, such as Java.
-There is, however, no fully-automated tool available that produces unit tests for
-general-purpose programs in a dynamically typed language.
-Pynguin is, to the best of our knowledge, the first tool that fills this gap
-and allows the automated generation of unit tests for Python programs.
+## Purpose
 
-<details>
-<summary>Internal Pipeline Status</summary>
+This extension helps Pynguin discover more meaningful tests when source code includes functional expectations in docstrings.
+The semantic layer can improve search guidance in areas where structural coverage alone is not enough.
 
-[![pipeline status](https://gitlab.infosun.fim.uni-passau.de/se2/pynguin/pynguin/badges/main/pipeline.svg)](https://gitlab.infosun.fim.uni-passau.de/se2/pynguin/pynguin/-/commits/main)
-[![coverage report](https://gitlab.infosun.fim.uni-passau.de/se2/pynguin/pynguin/badges/main/coverage.svg)](https://gitlab.infosun.fim.uni-passau.de/se2/pynguin/pynguin/-/commits/main)
+## Core Capabilities
 
-</details>
+1. Docstring constraint extraction.
+2. Semantic seeding for the initial population.
+3. Fitness guidance with semantic penalties and bonuses.
+4. Integration with the existing search workflow.
+5. Predictable execution with testable modules and dedicated unit tests.
 
-[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![PyPI version](https://badge.fury.io/py/pynguin.svg)](https://badge.fury.io/py/pynguin)
-[![Supported Python Versions](https://img.shields.io/pypi/pyversions/pynguin.svg)](https://github.com/se2p/pynguin)
-[![Documentation Status](https://readthedocs.org/projects/pynguin/badge/?version=latest)](https://pynguin.readthedocs.io/en/latest/?badge=latest)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3989840.svg)](https://doi.org/10.5281/zenodo.3989840)
-[![REUSE status](https://api.reuse.software/badge/github.com/se2p/pynguin)](https://api.reuse.software/info/github.com/se2p/pynguin)
-[![Downloads](https://static.pepy.tech/personalized-badge/pynguin?period=total&units=international_system&left_color=grey&right_color=blue&left_text=Downloads)](https://pepy.tech/project/pynguin)
-[![SWH](https://archive.softwareheritage.org/badge/origin/https://github.com/se2p/pynguin/)](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/se2p/pynguin)
+## Architecture Overview
 
+The semantic extension is implemented in the `src/pynguin/semantics` package.
 
-![Pynguin Logo](https://raw.githubusercontent.com/se2p/pynguin/master/docs/source/_static/pynguin-logo.png "Pynguin Logo")
+| Module | Responsibility |
+| :--- | :--- |
+| `docstring_constraints.py` | Parses and represents constraints from docstrings |
+| `docstring_seeding_observer.py` | Connects semantic extraction to runtime seeding events |
+| `ga_seeding.py` | Supplies semantic aware seeds for evolutionary search |
+| `fitness_docstring_penalty.py` | Applies penalties when generated behavior violates semantic expectations |
+| `helpers.py` | Shared semantic utilities |
 
-## Attention
+## Requirements
 
-*Please Note:*
+1. Python 3.10.
+2. A supported Pynguin installation from this repository.
+3. A module under test that includes meaningful docstrings.
 
-**Pynguin executes the module under test!**
-As a consequence, depending on what code is in that module,
-running Pynguin can cause serious harm to your computer,
-for example, wipe your entire hard disk!
-We recommend running Pynguin in an isolated environment;
-use, for example, a Docker container to minimize the risk of damaging
-your system.
+## Installation
 
-**Pynguin is only a research prototype!**
-It is not tailored towards production use whatsoever.
-However, we would love to see Pynguin in a production-ready stage at some point;
-please report your experiences in using Pynguin to us.
+Install project dependencies with Poetry.
 
-
-## Prerequisites
-
-Before you begin, ensure you have met the following requirements:
-- You have installed Python 3.10 (we have not yet tested with Python
-  3.11, there might be some problems due to changed internals regarding the byte-code
-  instrumentation).
-
-  **Attention:** Pynguin now requires Python 3.10!  Older versions are no longer
-  supported!
-- You have a recent Linux/macOS/Windows machine.
-
-Please consider reading the [online documentation](https://pynguin.readthedocs.io)
-to start your Pynguin adventure.
-
-## Installing Pynguin
-
-Pynguin can be easily installed using the `pip` tool by typing:
 ```bash
-pip install pynguin
+poetry install
 ```
 
-Make sure that your version of `pip` is that of a supported Python version, as any
-older version is not supported by Pynguin!
+Run Pynguin inside the Poetry environment.
 
-## Using Pynguin
-
-Before you continue, please read the [quick start guide](https://pynguin.readthedocs.io/en/latest/user/quickstart.html)
-
-Pynguin is a command-line application.
-Once you installed it to a virtual environment, you can invoke the tool by typing
-`pynguin` inside this virtual environment.
-Pynguin will then print a list of its command-line parameters.
-
-A minimal full command line to invoke Pynguin could be the following,
-where we assume that a project `foo` is located in `/tmp/foo`,
-we want to store Pynguin's generated tests in `/tmp/testgen`,
-and we want to generate tests using a whole-suite approach for the module `foo.bar`
-(wrapped for better readability):
 ```bash
-pynguin \
-  --project-path /tmp/foo \
-  --output-path /tmp/testgen \
-  --module-name foo.bar
+poetry run pynguin --help
 ```
-Please find a more detailed example in the [quick start guide](https://pynguin.readthedocs.io/en/latest/user/quickstart.html).
 
+## Quick Start
 
-## Contributing to Pynguin
+Use the same project path and module parameters as standard Pynguin.
+The semantic extension is loaded through the repository codebase and participates in the generation process.
 
-For the development of Pynguin you will need the [`poetry`](https://python-poetry.org)
-dependency management and packaging tool.
-To start developing, follow these steps:
-1. Clone the repository
-2. Change to the `pynguin` folder: `cd pynguin`
-3. Create a virtual environment and install dependencies using `poetry`: `poetry install`
-4. Make your changes
-5. Run `make check` to verify that your changes pass all checks
+```bash
+poetry run pynguin \
+  --project-path /path/to/project \
+  --output-path /path/to/generated_tests \
+  --module-name package.module
+```
 
-   Please see the [`poetry` documentation](https://python-poetry.org/docs/) for more information on this tool.
+## Stability Notes
 
-## Contributors
+This extension was implemented to support deterministic workflows as far as the underlying test generation strategy allows.
+For best stability, keep a fixed Python version, fixed dependencies, and fixed Pynguin configuration.
 
-Pynguin is developed at the
-[Chair of Software Engineering II](https://www.fim.uni-passau.de/lehrstuhl-fuer-software-engineering-ii/)
-of the [University of Passau](https://www.uni-passau.de).
+## Validation
 
-Maintainers: [Stephan Lukasczyk](https://github.com/stephanlukasczyk), [Lukas Krodinger](https://github.com/LuKrO2011)
+Run focused tests for semantic behavior.
 
-Contributors:
-- [Altin Hajdari](https://github.com/AltinHajdari)
-- [Abdelillah Aissani](https://github.com/Abassion)
-- [Juan Altmayer Pizzorno](https://github.com/jaltmayerpizzorno)
-- [Lucas Berg](https://github.com/BergLucas)
-- [Tucker Blue](https://github.com/tuckcodes)
-- [Gordon Fraser](https://github.com/gofraser)
-- [Abdur-Rahmaan Janhangeer](https://github.com/Abdur-rahmaanJ)
-- [Maximilian Königseder](https://github.com/mak1ng)
-- [Florian Kroiß](https://github.com/Wooza)
-- [Simon Labrenz](https://github.com/labrenz)
-- [Roman Levin](https://github.com/romanlevin)
-- [Juan Julián Merelo Guervós](https://github.com/JJ)
-- [Lukas Steffens](https://github.com/Luki42)
-- [Florian Straubinger](https://github.com/f-str)
-- [Sara Tavares](https://github.com/stavares843)
+```bash
+poetry run pytest src/pynguin/tests/semantics/test_docstring_extractor.py
+```
 
+Run the complete test suite when preparing integration changes.
 
-### Development using PyCharm.
+```bash
+poetry run pytest
+```
 
-If you want to use the PyCharm IDE you have to set up a few things:
-1. Import `pynguin` into PyCharm.
-2. Let PyCharm configure configure a virtual environment using `poetry`.
-3. Set the default test runner to `pytest`
-4. Set the DocString format to `Google`
+## Safety
 
+Pynguin executes the module under test.
+Only run it on trusted code and prefer isolated environments such as containers.
+
+## Documentation
+
+User documentation is available in the `docs` directory and at Read the Docs.
+Start with `docs/user/quickstart.rst` for end to end usage.
+
+## Contributing
+
+1. Install dependencies with Poetry.
+2. Implement your change with tests.
+3. Run quality checks.
+4. Open a pull request with a clear summary.
 
 ## License
 
-This project is licensed under the terms of the [MIT License](LICENSE.rst).
-Pynguin was using the GNU Lesser General Public License (LGPL) until version 0.29.0,
-its licence was changed with version 0.30.0.
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=se2p/pynguin&type=Date)](https://star-history.com/#se2p/pynguin)
+This project is licensed under the MIT License.
+See `LICENSE.rst` for details.
